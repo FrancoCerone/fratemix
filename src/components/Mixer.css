@@ -1,0 +1,332 @@
+/* Stile Traktor per Mixer */
+.mixer-traktor {
+  background: #0f0f0f;
+  border: 1px solid #1a1a1a;
+  border-radius: 4px;
+  padding: 1rem;
+  padding-bottom: 90px; /* Spazio per il crossfader */
+  display: flex;
+  flex-direction: row;
+  min-width: 450px;
+  max-width: 450px;
+  gap: 1rem;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.mixer-section-traktor {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  flex: 1;
+}
+
+.mixer-divider-traktor {
+  height: 1px;
+  background: #1a1a1a;
+  margin: 0.5rem 0;
+}
+
+.mixer-divider-traktor-vertical {
+  width: 1px;
+  background: #1a1a1a;
+  margin: 0 0.5rem;
+  align-self: stretch;
+}
+
+/* Gain Control */
+.gain-control-traktor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gain-knob-wrapper-prime {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gain-label-traktor {
+  font-size: 0.7rem;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* EQ Controls */
+.eq-row-traktor {
+  display: flex;
+  justify-content: space-around;
+  gap: 0.5rem;
+}
+
+.eq-control-traktor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.eq-knob-wrapper-prime {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.eq-label-traktor {
+  font-size: 0.65rem;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+
+.eq-kill-traktor {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #666;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 700;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.eq-kill-traktor:hover {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+}
+
+.eq-kill-traktor.active {
+  background: #e24a4a;
+  border-color: #e85a5a;
+  color: #fff;
+  box-shadow: 0 0 6px rgba(226, 74, 74, 0.4);
+}
+
+/* Filter Control */
+.filter-control-traktor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-knob-wrapper-prime {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-label-traktor {
+  font-size: 0.7rem;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Mixer Buttons */
+.mixer-buttons-traktor {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.mixer-btn-traktor {
+  padding: 0.4rem 0.8rem;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #888;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.15s;
+  min-width: 45px;
+}
+
+.mixer-btn-traktor:hover {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+  color: #fff;
+}
+
+.cue-btn-traktor {
+  font-size: 1rem;
+  padding: 0.3rem 0.6rem;
+}
+
+/* Crossfader */
+.crossfader-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1rem;
+  background: #0a0a0a;
+  border-top: 2px solid #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: auto;
+}
+
+.crossfader-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #888;
+  min-width: 20px;
+  text-align: center;
+}
+
+.crossfader-wrapper {
+  flex: 1;
+  position: relative;
+  height: 60px;
+  display: flex;
+  align-items: center;
+}
+
+.crossfader-slider {
+  width: 100%;
+  height: 12px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(to right, #4a90e2 0%, #e24a4a 100%);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  border: 2px solid #1a1a1a;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.crossfader-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.5);
+  border: 3px solid #333;
+  transition: all 0.2s;
+}
+
+.crossfader-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.9), 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.crossfader-slider::-moz-range-thumb {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid #333;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s;
+}
+
+.crossfader-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.9), 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.crossfader-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 12px;
+  background: transparent;
+  border-radius: 6px;
+}
+
+.crossfader-slider::-moz-range-track {
+  width: 100%;
+  height: 12px;
+  background: transparent;
+  border-radius: 6px;
+}
+
+.crossfader-indicator {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: left 0.1s ease-out;
+}
+
+.crossfader-handle {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
+  border-radius: 50%;
+  border: 3px solid #333;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+}
+
+
+/* Stili PrimeReact Knob personalizzati */
+.p-knob {
+  color: #4a90e2 !important;
+}
+
+.p-knob-text {
+  fill: #4a90e2 !important;
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+}
+
+.p-knob-range {
+  stroke: #2a2a2a !important;
+}
+
+.p-knob-value {
+  stroke: #4a90e2 !important;
+  stroke-width: 3 !important;
+}
+
+.p-knob-value:focus {
+  outline: none !important;
+}
+
+/* Responsive */
+@media (max-width: 1400px) {
+  .mixer-traktor {
+    flex-direction: column;
+    min-width: 100%;
+    max-width: 100%;
+  }
+  
+  .mixer-divider-traktor-vertical {
+    width: 100%;
+    height: 1px;
+    margin: 0.5rem 0;
+  }
+  
+  .crossfader-container {
+    position: relative;
+  }
+  
+  .mixer-content {
+    grid-template-columns: 1fr;
+  }
+}

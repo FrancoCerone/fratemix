@@ -1,0 +1,165 @@
+.app {
+  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0a;
+  color: #e0e0e0;
+  overflow: hidden;
+}
+
+.app-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-header {
+  padding: 1rem 2rem;
+  background: #0f0f0f;
+  border-bottom: 1px solid #1a1a1a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-left h1 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 2px;
+  margin: 0;
+}
+
+.header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.master-tempo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.master-tempo-label {
+  font-size: 0.65rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.master-tempo-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #4a90e2;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+.master-tempo-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.master-btn-small {
+  padding: 0.3rem 0.8rem;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #888;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.15s;
+}
+
+.master-btn-small:hover {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+  color: #fff;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.app-main {
+  flex: 1;
+  padding: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  align-items: stretch;
+  min-height: 0;
+  overflow-y: hidden;
+}
+
+.decks-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.app-footer {
+  padding: 1rem 2rem;
+  background: #0f0f0f;
+  border-top: 1px solid #1a1a1a;
+  text-align: center;
+  color: #666;
+  font-size: 0.8rem;
+}
+
+/* Responsive */
+@media (max-width: 1400px) {
+  .app-main {
+    flex-wrap: wrap;
+  }
+  
+  .mixer-traktor {
+    min-width: 100%;
+    max-width: 100%;
+    order: 3;
+    flex-direction: row;
+    justify-content: space-around;
+  }
+  
+  .mixer-divider-traktor {
+    width: 1px;
+    height: auto;
+    margin: 0 1rem;
+  }
+  
+  .mixer-section-traktor {
+    flex: 1;
+  }
+  
+  .deck-traktor {
+    min-width: calc(50% - 0.5rem);
+  }
+}
+
+@media (max-width: 1024px) {
+  .app-main {
+    flex-direction: column;
+  }
+  
+  .deck-traktor {
+    min-width: 100%;
+  }
+  
+  .app-header h1 {
+    font-size: 1.2rem;
+  }
+}
