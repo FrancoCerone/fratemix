@@ -10,10 +10,11 @@
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
+    "primeicons": "^7.0.0",
+    "primereact": "^10.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "primereact": "^10.0.0",
-    "primeicons": "^7.0.0"
+    "realtime-bpm-analyzer": "^5.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",

@@ -48,6 +48,16 @@
   white-space: nowrap;
 }
 
+.load-placeholder.restoring {
+  color: #4a90e2;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .load-placeholder {
   color: #555;
   font-style: italic;
@@ -239,6 +249,59 @@
   font-weight: 600;
   min-width: 35px;
   text-align: center;
+}
+
+.bpm-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #1a1a1a;
+}
+
+.bpm-reference {
+  font-size: 0.75rem;
+  color: #888;
+  font-variant-numeric: tabular-nums;
+}
+
+.pitch-reset-btn {
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  color: #888;
+  padding: 0.25rem 0.6rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.pitch-reset-btn:hover:not(:disabled) {
+  background: #3a3a3a;
+  border-color: #4a90e2;
+  color: #4a90e2;
+}
+
+.pitch-reset-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Pitch Slider Styling */
+.pitch-slider {
+  background: linear-gradient(to right, 
+    #e24a4a 0%,    /* Rosso a sinistra (-8%) */
+    #888 50%,       /* Grigio al centro (0%) */
+    #4ae24a 100%    /* Verde a destra (+8%) */
+  ) !important;
+}
+
+.pitch-center {
+  left: 50% !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 2px #000, 0 0 8px rgba(255, 255, 255, 0.5) !important;
 }
 
 .bpm-slider-wrapper {

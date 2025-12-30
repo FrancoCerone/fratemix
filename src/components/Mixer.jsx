@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Knob } from 'primereact/knob';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import 'primereact/resources/themes/lara-dark-blue/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
@@ -13,9 +14,11 @@ import './Mixer.css';
  * - Kill switch per ogni banda EQ
  * - Filtro passa-alto/passa-basso per ogni deck
  * - Controlli loop per ogni deck
+ * - Persistenza dello stato del crossfader
  */
 function Mixer({ deckA, deckB }) {
-  const [crossfader, setCrossfader] = useState(0.5); // 0 = solo A, 1 = solo B, 0.5 = mix 50/50
+  // Usa useLocalStorage per persistere il valore del crossfader
+  const [crossfader, setCrossfader] = useLocalStorage('fratemix_crossfader', 0.5); // 0 = solo A, 1 = solo B, 0.5 = mix 50/50
   
   // Aggiorna i gain dei deck in base al crossfader
   React.useEffect(() => {

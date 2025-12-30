@@ -1,89 +1,181 @@
 /**
- * BPM Detector - Analizza un AudioBuffer per stimare il BPM
+ * BPM Detector usando realtime-bpm-analyzer
  * 
- * Usa l'analisi dei picchi nell'energia del segnale audio
- * per determinare il tempo della traccia
+ * Usa la libreria professionale realtime-bpm-analyzer per analisi BPM accurata
+ * Mantiene un algoritmo di fallback per compatibilità
  */
 
+import { createRealtimeBpmAnalyzer } from 'realtime-bpm-analyzer';
+
 /**
- * Rileva il BPM di un AudioBuffer
+ * Rileva il BPM di un AudioBuffer usando realtime-bpm-analyzer
  * @param {AudioBuffer} buffer - Il buffer audio da analizzare
- * @returns {number} - BPM stimato
+ * @returns {Promise<number>} - BPM stimato
  */
-export function detectBPM(buffer) {
+export async function detectBPM(buffer) {
   if (!buffer || buffer.length === 0) {
     return 120; // Default BPM
   }
   
   try {
-    // Ottieni i dati del canale (usa il primo canale)
-    const channelData = buffer.getChannelData(0);
+    console.log('🎵 Inizio analisi BPM con realtime-bpm-analyzer...');
+    
+    // Crea un AudioContext temporaneo per l'analisi
+    const offlineContext = new OfflineAudioContext(
+      buffer.numberOfChannels,
+      buffer.length,
+      buffer.sampleRate
+    );
+    
+    // Crea l'analyzer
+    const analyzer = await createRealtimeBpmAnalyzer(offlineContext);
+    
+    // Promise per catturare il BPM rilevato
+    const bpmPromise = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout: BPM non rilevato entro 10 secondi'));
+      }, 10000);
+      
+      analyzer.on('bpm', (data) => {
+        clearTimeout(timeout);
+        console.log('📊 Dati BPM ricevuti:', data);
+        
+        if (data.bpm && data.bpm.length > 0) {
+          // Prendi il primo BPM rilevato (solitamente il più accurato)
+          const detectedBPM = data.bpm[0].tempo;
+          console.log(`✅ BPM rilevato: ${detectedBPM}`);
+          resolve(detectedBPM);
+        } else {
+          reject(new Error('Nessun BPM nei dati'));
+        }
+      });
+    });
+    
+    // Crea un source buffer per l'analisi
+    const source = offlineContext.createBufferSource();
+    source.buffer = buffer;
+    
+    // Connetti source -> analyzer -> destination
+    source.connect(analyzer.node);
+    analyzer.node.connect(offlineContext.destination);
+    
+    // Avvia la riproduzione per l'analisi
+    source.start(0);
+    
+    // Rendi l'audio offline (processa tutto in una volta)
+    offlineContext.startRendering();
+    
+    // Aspetta il risultato
+    const bpm = await bpmPromise;
+    
+    // Arrotonda a 0.1
+    return Math.round(bpm * 10) / 10;
+    
+  } catch (error) {
+    console.warn('⚠️ Errore con realtime-bpm-analyzer:', error.message);
+    console.log('🔄 Fallback all\'algoritmo interno...');
+    
+    // Fallback al nostro algoritmo se la libreria fallisce
+    return detectBPMFallback(buffer);
+  }
+}
+
+/**
+ * Algoritmo di fallback per rilevamento BPM
+ * Versione semplificata del nostro algoritmo precedente
+ */
+function detectBPMFallback(buffer) {
+  try {
+    console.log('🎵 Analisi BPM con algoritmo fallback...');
+    
+    // Ottieni i dati del canale
+    const channelData = buffer.numberOfChannels > 1 
+      ? averageChannels(buffer) 
+      : buffer.getChannelData(0);
     const sampleRate = buffer.sampleRate;
     
-    // Analizza solo i primi 30 secondi per velocità
-    const maxSamples = Math.min(channelData.length, sampleRate * 30);
+    // Analizza primi 30 secondi
+    const analyzeDuration = Math.min(30, buffer.duration);
+    const maxSamples = Math.floor(sampleRate * analyzeDuration);
     
-    // Calcola l'energia del segnale in finestre temporali
-    const windowSize = Math.floor(sampleRate * 0.05); // 50ms windows
+    // Calcola energia in finestre di 100ms
+    const windowSize = Math.floor(sampleRate * 0.1);
+    const hopSize = Math.floor(windowSize / 2);
     const energyValues = [];
     
-    for (let i = 0; i < maxSamples - windowSize; i += windowSize) {
+    for (let i = 0; i < maxSamples - windowSize; i += hopSize) {
       let energy = 0;
       for (let j = i; j < i + windowSize; j++) {
-        energy += Math.abs(channelData[j]);
+        energy += channelData[j] * channelData[j];
       }
       energyValues.push(energy / windowSize);
     }
     
-    // Trova i picchi di energia
-    const peaks = findPeaks(energyValues, 0.3);
+    // Trova picchi
+    const peaks = findPeaksSimple(energyValues, hopSize, sampleRate);
     
-    if (peaks.length < 2) {
+    if (peaks.length < 4) {
       return estimateBPMFromDuration(buffer.duration);
     }
     
-    // Calcola gli intervalli tra i picchi
+    // Calcola intervalli
     const intervals = [];
-    for (let i = 1; i < Math.min(peaks.length, 50); i++) {
-      intervals.push((peaks[i] - peaks[i - 1]) * windowSize / sampleRate);
+    for (let i = 1; i < peaks.length; i++) {
+      const interval = (peaks[i] - peaks[i - 1]) * hopSize / sampleRate;
+      if (interval >= 0.2 && interval <= 2.0) {
+        intervals.push(interval);
+      }
     }
     
     if (intervals.length === 0) {
       return estimateBPMFromDuration(buffer.duration);
     }
     
-    // Trova l'intervallo più comune (clustering)
-    const intervalClusters = clusterIntervals(intervals);
-    const avgInterval = intervalClusters[0] || (intervals.reduce((a, b) => a + b) / intervals.length);
-    
-    // Converti l'intervallo in BPM
+    // Media degli intervalli
+    const avgInterval = intervals.reduce((a, b) => a + b) / intervals.length;
     let bpm = 60 / avgInterval;
     
-    // Normalizza il BPM in un range ragionevole (60-180)
+    // Normalizza tra 60-180
     while (bpm < 60) bpm *= 2;
     while (bpm > 180) bpm /= 2;
     
-    // Arrotonda a 0.1
+    // Aggiusta a BPM comuni
+    const commonBPMs = [120, 128, 125, 130, 140, 150, 160, 174];
+    for (let common of commonBPMs) {
+      if (Math.abs(bpm - common) < 5) {
+        console.log(`🎯 Aggiustato ${bpm.toFixed(1)} → ${common} BPM`);
+        bpm = common;
+        break;
+      }
+    }
+    
+    console.log(`✅ BPM fallback: ${bpm.toFixed(1)}`);
+    
     return Math.round(bpm * 10) / 10;
   } catch (error) {
-    console.error('Errore nel rilevamento BPM:', error);
+    console.error('❌ Errore anche nel fallback:', error);
     return estimateBPMFromDuration(buffer.duration);
   }
 }
 
 /**
- * Trova i picchi in un array di valori
+ * Trova picchi semplificato
  */
-function findPeaks(values, threshold) {
+function findPeaksSimple(values, hopSize, sampleRate) {
   const peaks = [];
-  const avgEnergy = values.reduce((a, b) => a + b) / values.length;
-  const minPeakHeight = avgEnergy * (1 + threshold);
+  const sortedValues = [...values].sort((a, b) => a - b);
+  const threshold = sortedValues[Math.floor(sortedValues.length * 0.7)];
+  const minPeakDistance = Math.floor(0.3 * sampleRate / hopSize);
+  
+  let lastPeakIndex = -minPeakDistance;
   
   for (let i = 1; i < values.length - 1; i++) {
-    if (values[i] > minPeakHeight && 
+    if (values[i] > threshold && 
         values[i] > values[i - 1] && 
-        values[i] > values[i + 1]) {
+        values[i] > values[i + 1] &&
+        (i - lastPeakIndex) >= minPeakDistance) {
       peaks.push(i);
+      lastPeakIndex = i;
     }
   }
   
@@ -91,51 +183,35 @@ function findPeaks(values, threshold) {
 }
 
 /**
- * Raggruppa gli intervalli simili
+ * Media i canali stereo
  */
-function clusterIntervals(intervals) {
-  if (intervals.length === 0) return [];
+function averageChannels(buffer) {
+  const left = buffer.getChannelData(0);
+  const right = buffer.getChannelData(1);
+  const mono = new Float32Array(left.length);
   
-  // Crea bins per gli intervalli
-  const bins = {};
-  const binSize = 0.05; // 50ms
+  for (let i = 0; i < left.length; i++) {
+    mono[i] = (left[i] + right[i]) / 2;
+  }
   
-  intervals.forEach(interval => {
-    const bin = Math.round(interval / binSize);
-    bins[bin] = (bins[bin] || 0) + 1;
-  });
-  
-  // Trova il bin più popolato
-  const sortedBins = Object.entries(bins)
-    .sort((a, b) => b[1] - a[1])
-    .map(([bin]) => parseInt(bin) * binSize);
-  
-  return sortedBins;
+  return mono;
 }
 
 /**
- * Stima il BPM basandosi sulla durata (fallback)
+ * Stima il BPM dalla durata (ultimo fallback)
  */
 function estimateBPMFromDuration(duration) {
-  // Tipicamente le tracce dance sono tra 120-140 BPM
-  // Usiamo una stima basata sulla durata comune
-  if (duration < 120) return 140; // Tracce corte tendono ad essere più veloci
-  if (duration < 180) return 128;
-  if (duration < 300) return 125;
+  console.log('ℹ️ Stima BPM dalla durata della traccia');
+  if (duration < 120) return 128;
+  if (duration < 180) return 125;
+  if (duration < 240) return 122;
+  if (duration < 300) return 120;
   return 120;
 }
 
 /**
- * Analizza il BPM in background usando Web Worker (opzionale)
- * Per ora usiamo l'analisi sincrona per semplicità
+ * Analizza il BPM in modo asincrono
  */
 export async function detectBPMAsync(buffer) {
-  return new Promise((resolve) => {
-    // In una versione più avanzata, questo userebbe un Web Worker
-    setTimeout(() => {
-      resolve(detectBPM(buffer));
-    }, 0);
-  });
+  return detectBPM(buffer);
 }
-
-

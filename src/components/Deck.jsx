@@ -1,5 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import Waveform from './Waveform';
+import BPMCorrection from './BPMCorrection';
+import TapTempo from './TapTempo';
 import './Deck.css';
 
 /**
@@ -31,7 +33,11 @@ function Deck({
       {/* Header con nome traccia e controlli */}
       <div className="deck-traktor-header">
         <div className="deck-traktor-title">
-          {deckAudio.fileName ? (
+          {deckAudio.isRestoringAudio ? (
+            <span className="load-placeholder restoring">
+              🔄 Ripristino traccia...
+            </span>
+          ) : deckAudio.fileName ? (
             <span className="track-name">{deckAudio.fileName}</span>
           ) : (
             <span className="load-placeholder">Nessun file caricato</span>
@@ -77,6 +83,20 @@ function Deck({
                 ⚡ {deckAudio.detectedBPM}
               </span>
             )}
+            {deckAudio.isLoaded && (
+              <>
+                <TapTempo
+                  currentBPM={deckAudio.bpm}
+                  onBPMChange={(newBPM) => deckAudio.setBPM(newBPM)}
+                  deckLabel={deckLabel}
+                />
+                <BPMCorrection
+                  detectedBPM={deckAudio.detectedBPM || deckAudio.bpm}
+                  currentBPM={deckAudio.bpm}
+                  onCorrect={(newBPM) => deckAudio.setBPM(newBPM)}
+                />
+              </>
+            )}
           </span>
         </div>
         
@@ -101,70 +121,40 @@ function Deck({
         <div className="deck-bpm-controls">
           <div className="bpm-control-header">
             <label>TEMPO</label>
+            <span className="pitch-value">
+              {deckAudio.pitchValue > 0 ? '+' : ''}{deckAudio.pitchValue.toFixed(1)}%
+            </span>
             {syncEnabled && <span className="sync-indicator">🔗 SYNC</span>}
           </div>
           <div className="bpm-slider-container">
-            <span className="bpm-range-label">30</span>
+            <span className="bpm-range-label">-8%</span>
             <div className="bpm-slider-wrapper">
-              <input
-                type="range"
-                min="30"
-                max="250"
-                step="0.1"
-                value={deckAudio.bpm}
-                onChange={(e) => !syncEnabled && deckAudio.setBPM(parseFloat(e.target.value))}
-                disabled={syncEnabled}
-                className="bpm-slider"
-                style={{
-                  background: `linear-gradient(to right, 
-                    #4a90e2 0%, 
-                    #4a90e2 ${((deckAudio.bpm - 30) / (250 - 30)) * 100}%, 
-                    #333 ${((deckAudio.bpm - 30) / (250 - 30)) * 100}%, 
-                    #333 100%)`
-                }}
-              />
-              {deckAudio.detectedBPM && (
-                <div 
-                  className="bpm-center-marker"
-                  style={{
-                    left: `${((deckAudio.detectedBPM - 30) / (250 - 30)) * 100}%`
-                  }}
-                  title={`BPM originale: ${deckAudio.detectedBPM}`}
-                />
-              )}
-            </div>
-            <span className="bpm-range-label">250</span>
-          </div>
-          <div className="bpm-actions">
-            <button
-              className="bpm-reset-btn"
-              onClick={() => deckAudio.detectedBPM && deckAudio.setBPM(deckAudio.detectedBPM)}
-              disabled={syncEnabled || !deckAudio.detectedBPM}
-              title="Reset al BPM originale"
-            >
-              ↻ Reset
-            </button>
             <input
-              type="number"
-              className="bpm-input-number"
-              value={deckAudio.bpm.toFixed(1)}
-              onChange={(e) => {
-                const value = parseFloat(e.target.value);
-                if (!isNaN(value) && value >= 30 && value <= 250 && !syncEnabled) {
-                  deckAudio.setBPM(value);
-                }
-              }}
-              disabled={syncEnabled}
+              type="range"
+              min="-8"
+              max="8"
               step="0.1"
-              min="30"
-              max="250"
+              value={deckAudio.pitchValue}
+              onChange={(e) => !syncEnabled && deckAudio.setPitchValue(parseFloat(e.target.value))}
+              disabled={syncEnabled}
+              className="bpm-slider pitch-slider"
             />
-            <span className="bpm-percentage">
-              {deckAudio.detectedBPM 
-                ? `${((deckAudio.bpm / deckAudio.detectedBPM - 1) * 100).toFixed(1)}%`
-                : '0%'
-              }
+              <div className="bpm-center-marker pitch-center" title="0% (velocità originale)"></div>
+            </div>
+            <span className="bpm-range-label">+8%</span>
+          </div>
+          <div className="bpm-info-row">
+            <span className="bpm-reference">
+              BPM: {deckAudio.bpm.toFixed(1)} → {(deckAudio.bpm * (1 + deckAudio.pitchValue / 100)).toFixed(1)}
             </span>
+            <button 
+              className="pitch-reset-btn"
+              onClick={() => deckAudio.setPitchValue(0)}
+              disabled={deckAudio.pitchValue === 0 || syncEnabled}
+              title="Reset pitch a 0%"
+            >
+              0%
+            </button>
           </div>
         </div>
       )}

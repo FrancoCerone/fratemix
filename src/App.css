@@ -25,12 +25,36 @@
   align-items: center;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .header-left h1 {
   font-size: 1.2rem;
   font-weight: 700;
   color: #fff;
   letter-spacing: 2px;
   margin: 0;
+}
+
+.restore-message {
+  padding: 0.4rem 0.8rem;
+  background: rgba(76, 175, 80, 0.2);
+  border: 1px solid rgba(76, 175, 80, 0.5);
+  border-radius: 4px;
+  color: #4caf50;
+  font-size: 0.75rem;
+  font-weight: 600;
+  animation: fadeInOut 5s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-5px); }
+  10% { opacity: 1; transform: translateY(0); }
+  90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-5px); }
 }
 
 .header-center {
@@ -87,10 +111,40 @@
   color: #fff;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .subtitle {
   color: #666;
   font-size: 0.85rem;
   margin: 0;
+}
+
+.reset-btn-small {
+  padding: 0.4rem 0.8rem;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #888;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.reset-btn-small:hover {
+  background: #2a2a2a;
+  border-color: #e24a4a;
+  color: #e24a4a;
+  transform: scale(1.05);
+}
+
+.reset-btn-small:active {
+  transform: scale(0.95);
 }
 
 .app-main {

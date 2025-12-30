@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { detectBPMAsync } from '../utils/bpmDetector';
+import { usePersistedDeckState, useAudioFileStorage } from './usePersistedDeckState';
 
 /**
  * Hook personalizzato per gestire l'audio di un deck DJ
@@ -12,47 +13,60 @@ import { detectBPMAsync } from '../utils/bpmDetector';
  * - Controllo del tempo/BPM (playbackRate)
  * - Sistema di loop con lunghezze configurabili
  * - Sincronizzazione con altri deck
+ * - Persistenza dello stato nel localStorage
  * 
  * @param {Object} options - Opzioni di configurazione
+ * @param {string} options.deckId - Identificatore del deck ('A' o 'B')
  * @param {number} options.initialBPM - BPM iniziale (default: 128)
  * @param {Function} options.onSyncRequest - Callback quando questo deck richiede sync
  * @param {number} options.syncBPM - BPM di riferimento per sync (da altro deck)
  * @param {boolean} options.syncEnabled - Se true, questo deck segue syncBPM
  */
 export function useDeckAudio({
+  deckId = 'A',
   initialBPM = 128,
   onSyncRequest = null,
   syncBPM = null,
   syncEnabled = false
 } = {}) {
-  // Stato del deck
+  // Carica lo stato salvato dal localStorage
+  const { loadDeckState } = usePersistedDeckState(deckId, {});
+  const { saveAudioFile, loadAudioFile: loadSavedAudioFile } = useAudioFileStorage(deckId);
+  const savedState = useRef(loadDeckState());
+  const [stateRestored, setStateRestored] = useState(false);
+  const [isRestoringAudio, setIsRestoringAudio] = useState(false);
+  // Stato del deck - carica valori salvati se esistono
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [fileName, setFileName] = useState('');
-  const [bpm, setBPM] = useState(initialBPM);
-  const [detectedBPM, setDetectedBPM] = useState(null);
-  const [originalBPM, setOriginalBPM] = useState(initialBPM); // BPM originale della traccia caricata
+  const [isLoaded, setIsLoaded] = useState(savedState.current?.isLoaded || false);
+  const [currentTime, setCurrentTime] = useState(savedState.current?.currentTime || 0);
+  const [duration, setDuration] = useState(savedState.current?.duration || 0);
+  const [fileName, setFileName] = useState(savedState.current?.fileName || '');
+  const [bpm, setBPM] = useState(savedState.current?.bpm || initialBPM);
+  const [detectedBPM, setDetectedBPM] = useState(savedState.current?.detectedBPM || null);
+  const [originalBPM, setOriginalBPM] = useState(savedState.current?.detectedBPM || initialBPM); // BPM originale della traccia caricata
   
-  // Stato EQ (valori in dB, range tipico: -12 a +12)
-  const [eqLow, setEqLow] = useState(0);
-  const [eqMid, setEqMid] = useState(0);
-  const [eqHigh, setEqHigh] = useState(0);
-  const [eqLowKill, setEqLowKill] = useState(false);
-  const [eqMidKill, setEqMidKill] = useState(false);
-  const [eqHighKill, setEqHighKill] = useState(false);
+  // Stato EQ (valori in dB, range tipico: -12 a +12) - ripristina valori salvati
+  const [eqLow, setEqLow] = useState(savedState.current?.eqLow ?? 0);
+  const [eqMid, setEqMid] = useState(savedState.current?.eqMid ?? 0);
+  const [eqHigh, setEqHigh] = useState(savedState.current?.eqHigh ?? 0);
+  const [eqLowKill, setEqLowKill] = useState(savedState.current?.eqLowKill || false);
+  const [eqMidKill, setEqMidKill] = useState(savedState.current?.eqMidKill || false);
+  const [eqHighKill, setEqHighKill] = useState(savedState.current?.eqHighKill || false);
   
   // Stato filtro (0 = centro/nessun filtro, negativo = high-pass, positivo = low-pass)
-  const [filterValue, setFilterValue] = useState(0); // Range: -1 a +1
+  const [filterValue, setFilterValue] = useState(savedState.current?.filterValue ?? 0); // Range: -1 a +1
   
-  // Stato gain
-  const [gain, setGain] = useState(1); // Range: 0 a 2
+  // Stato gain - ripristina valore salvato
+  const [gain, setGain] = useState(savedState.current?.gain ?? 1); // Range: 0 a 2
   
-  // Stato loop
-  const [loopEnabled, setLoopEnabled] = useState(false);
-  const [loopStart, setLoopStart] = useState(0);
-  const [loopLength, setLoopLength] = useState(1); // in beat (1, 2, 4, 8)
+  // Stato pitch/tempo - separato dal BPM!
+  // Questo è il valore che controlla realmente la velocità di riproduzione
+  const [pitchValue, setPitchValue] = useState(savedState.current?.pitchValue ?? 0); // Range: -8% a +8% (0 = normale)
+  
+  // Stato loop - ripristina valori salvati
+  const [loopEnabled, setLoopEnabled] = useState(savedState.current?.loopEnabled || false);
+  const [loopStart, setLoopStart] = useState(savedState.current?.loopStart || 0);
+  const [loopLength, setLoopLength] = useState(savedState.current?.loopLength || 1); // in beat (1, 2, 4, 8)
   
   // Aggiorna il ref quando cambia loopEnabled
   useEffect(() => {
@@ -176,11 +190,27 @@ export function useDeckAudio({
       // Reset dell'offset per la nuova traccia
       startOffsetRef.current = 0;
       
+      // Salva il file in IndexedDB per ripristinarlo dopo il refresh
+      // (solo se < 50MB per non riempire lo storage)
+      if (file.size < 50 * 1024 * 1024) {
+        console.log(`💾 Salvataggio file audio per Deck ${deckId} in IndexedDB...`);
+        await saveAudioFile(file, {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          duration: audioBuffer.duration,
+          detectedBPM: detectedBPMValue
+        });
+        console.log(`✅ File salvato con successo per Deck ${deckId}`);
+      } else {
+        console.warn(`⚠️ File troppo grande (${(file.size / 1024 / 1024).toFixed(2)}MB) per essere salvato. Limite: 50MB`);
+      }
+      
     } catch (error) {
       console.error('Errore nel caricamento del file audio:', error);
       alert('Errore nel caricamento del file audio. Assicurati che sia un formato supportato (MP3, WAV, OGG).');
     }
-  }, [initAudioContext]);
+  }, [initAudioContext, deckId, saveAudioFile]);
   
   /**
    * Crea e avvia un nuovo source node per la riproduzione
@@ -209,11 +239,11 @@ export function useDeckAudio({
     sourceNodeRef.current = audioContextRef.current.createBufferSource();
     sourceNodeRef.current.buffer = audioBufferRef.current;
     
-    // Imposta la velocità di riproduzione (per controllare BPM/tempo)
-    // playbackRate = 1.0 significa velocità normale (BPM originale della traccia)
-    // playbackRate = 2.0 significa doppia velocità (ottava superiore)
-    // Usa originalBPM invece di initialBPM per calcolare il playbackRate corretto
-    const playbackRate = bpm / originalBPM;
+    // Imposta la velocità di riproduzione usando SOLO il pitch slider
+    // pitchValue: 0 = normale, +8 = 8% più veloce, -8 = 8% più lento
+    // playbackRate = 1.0 + (pitchValue / 100)
+    // Esempio: pitchValue = 4 → playbackRate = 1.04 (4% più veloce)
+    const playbackRate = 1.0 + (pitchValue / 100);
     sourceNodeRef.current.playbackRate.value = playbackRate;
     
     // Collega il source al primo nodo della catena (EQ Low)
@@ -279,7 +309,7 @@ export function useDeckAudio({
     // Salva il tempo di inizio per calcolare il tempo corrente
     startOffsetRef.current = offset;
     loopStartTimeRef.current = startTime;
-  }, [bpm, originalBPM, loopStart, loopLength]);
+  }, [pitchValue, loopStart, loopLength]);
   
   /**
    * Avvia o riprende la riproduzione
@@ -455,14 +485,15 @@ export function useDeckAudio({
   }, [crossfaderGain]);
   
   /**
-   * Aggiorna il playbackRate quando cambia il BPM
+   * Aggiorna il playbackRate quando cambia il pitch slider (NON il BPM!)
    */
   useEffect(() => {
-    if (sourceNodeRef.current && isPlaying) {
-      const playbackRate = bpm / originalBPM;
+    if (sourceNodeRef.current) {
+      const playbackRate = 1.0 + (pitchValue / 100);
       sourceNodeRef.current.playbackRate.value = playbackRate;
+      console.log(`🎚️ Pitch aggiornato: ${pitchValue.toFixed(1)}% → playbackRate: ${playbackRate.toFixed(3)}`);
     }
-  }, [bpm, originalBPM, isPlaying]);
+  }, [pitchValue]);
   
   /**
    * Gestisce la sincronizzazione con altri deck
@@ -519,10 +550,100 @@ export function useDeckAudio({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
   
+  // Salva automaticamente lo stato nel localStorage
+  usePersistedDeckState(deckId, {
+    gain,
+    eqLow,
+    eqMid,
+    eqHigh,
+    eqLowKill,
+    eqMidKill,
+    eqHighKill,
+    filterValue,
+    bpm,
+    detectedBPM,
+    pitchValue, // Salva anche il pitch!
+    currentTime,
+    duration,
+    loopEnabled,
+    loopStart,
+    loopLength,
+    fileName,
+    isLoaded,
+    isPlaying
+  });
+  
+  // Ripristina il file audio salvato quando l'app viene riaperta
+  useEffect(() => {
+    const restoreAudioFile = async () => {
+      // Se c'è uno stato salvato con un fileName, prova a ripristinare il file
+      if (savedState.current && savedState.current.fileName && !isRestoringAudio && !isLoaded) {
+        setIsRestoringAudio(true);
+        
+        try {
+          console.log(`🔄 Tentativo di ripristino file audio per Deck ${deckId}...`);
+          const savedAudioData = await loadSavedAudioFile();
+          
+          if (savedAudioData && savedAudioData.file) {
+            console.log(`📂 File trovato in IndexedDB: ${savedAudioData.metadata.fileName}`);
+            
+            // Inizializza l'AudioContext se necessario
+            initAudioContext();
+            
+            // Carica il file salvato
+            const arrayBuffer = await savedAudioData.file.arrayBuffer();
+            const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+            audioBufferRef.current = audioBuffer;
+            
+            setIsLoaded(true);
+            setFileName(savedAudioData.metadata.fileName);
+            setDuration(savedAudioData.metadata.duration);
+            
+            // Ripristina il BPM salvato (non ricalcolare per velocità)
+            if (savedState.current.detectedBPM) {
+              setDetectedBPM(savedState.current.detectedBPM);
+              setOriginalBPM(savedState.current.detectedBPM);
+            }
+            
+            // Ripristina la posizione salvata se presente
+            if (savedState.current.currentTime) {
+              startOffsetRef.current = savedState.current.currentTime;
+              setCurrentTime(savedState.current.currentTime);
+            }
+            
+            console.log(`✅ File audio ripristinato con successo per Deck ${deckId}!`);
+          } else {
+            console.log(`ℹ️ Nessun file audio salvato per Deck ${deckId}. Carica una traccia manualmente.`);
+          }
+        } catch (error) {
+          console.error(`❌ Errore nel ripristino del file audio per Deck ${deckId}:`, error);
+          console.log(`ℹ️ Carica manualmente la traccia per Deck ${deckId}`);
+        } finally {
+          setIsRestoringAudio(false);
+        }
+      }
+    };
+    
+    restoreAudioFile();
+  }, [deckId, initAudioContext, isLoaded, isRestoringAudio, loadSavedAudioFile]);
+  
+  // Mostra un messaggio quando lo stato è stato ripristinato
+  useEffect(() => {
+    if (savedState.current && !stateRestored) {
+      console.log(`✅ Stato del Deck ${deckId} ripristinato:`, {
+        fileName: savedState.current.fileName,
+        bpm: savedState.current.bpm,
+        gain: savedState.current.gain
+      });
+      setStateRestored(true);
+    }
+  }, [deckId, stateRestored]);
+  
   return {
     // Stato
     isPlaying,
     isLoaded,
+    isRestoringAudio,
     currentTime,
     duration,
     fileName,
@@ -560,8 +681,12 @@ export function useDeckAudio({
     // Crossfader
     setCrossfaderGain,
     
-    // BPM
+    // BPM (solo valore di riferimento, non cambia la velocità!)
     setBPM,
+    
+    // Pitch/Tempo (questo controlla la velocità reale!)
+    pitchValue,
+    setPitchValue,
     
     // Loop
     loopEnabled,
