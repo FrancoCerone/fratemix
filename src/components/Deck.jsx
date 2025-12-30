@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import Waveform from './Waveform';
+import WaveformOverview from './WaveformOverview';
+import WaveformDetail from './WaveformDetail';
 import BPMCorrection from './BPMCorrection';
 import TapTempo from './TapTempo';
 import './Deck.css';
@@ -61,11 +62,20 @@ function Deck({
         </div>
       </div>
       
-      {/* Waveform principale */}
+      {/* Waveform Overview - compatto, mostra tutta la traccia */}
       {deckAudio.isLoaded && (
-        <Waveform
+        <WaveformOverview
           audioBuffer={deckAudio.audioBuffer}
-          isPlaying={deckAudio.isPlaying}
+          currentTime={deckAudio.currentTime}
+          duration={deckAudio.duration}
+          onSeek={deckAudio.seek}
+        />
+      )}
+      
+      {/* Waveform Detail - zoomabile, mostra sezione corrente */}
+      {deckAudio.isLoaded && (
+        <WaveformDetail
+          audioBuffer={deckAudio.audioBuffer}
           currentTime={deckAudio.currentTime}
           duration={deckAudio.duration}
           onSeek={deckAudio.seek}
