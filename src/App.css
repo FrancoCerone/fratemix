@@ -111,6 +111,18 @@
   color: #fff;
 }
 
+.master-btn-small.active {
+  background: #4a90e2;
+  border-color: #5ba3f2;
+  color: #fff;
+  box-shadow: 0 0 8px rgba(74, 144, 226, 0.4);
+}
+
+.master-btn-small.active:hover {
+  background: #5ba3f2;
+  border-color: #6bb3f8;
+}
+
 .header-right {
   display: flex;
   align-items: center;

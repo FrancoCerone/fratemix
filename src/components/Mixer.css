@@ -9,9 +9,10 @@
   flex-direction: row;
   min-width: 450px;
   max-width: 450px;
-  gap: 1rem;
+  gap: 0.75rem;
   flex-shrink: 0;
   position: relative;
+  overflow: hidden;
 }
 
 .mixer-section-traktor {
@@ -20,6 +21,8 @@
   gap: 1rem;
   padding: 0.5rem 0;
   flex: 1;
+  min-width: 0;
+  overflow: visible;
 }
 
 .mixer-divider-traktor {
@@ -35,48 +38,42 @@
   align-self: stretch;
 }
 
-/* Gain Control */
-.gain-control-traktor {
+/* EQ Panel */
+.eq-panel-traktor {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  overflow: visible;
 }
 
-.gain-knob-wrapper-prime {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.gain-label-traktor {
-  font-size: 0.7rem;
-  color: #888;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* EQ Controls */
+/* EQ Controls - Verticale */
 .eq-row-traktor {
   display: flex;
-  justify-content: space-around;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   gap: 0.5rem;
+  flex: 1;
+  padding: 0.5rem 0;
 }
 
 .eq-control-traktor {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 95px;
 }
 
 .eq-knob-wrapper-prime {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.3rem;
+  min-height: 95px;
 }
 
 .eq-label-traktor {
@@ -117,12 +114,106 @@
   box-shadow: 0 0 6px rgba(226, 74, 74, 0.4);
 }
 
+/* Volume Slider in EQ Panel */
+.mixer-volume-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  width: 45px;
+  flex-shrink: 0;
+  padding-top: 0.5rem;
+}
+
+.mixer-volume-label {
+  font-size: 0.7rem;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mixer-volume-slider-wrapper {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.mixer-volume-slider {
+  width: 100%;
+  height: 100%;
+  -webkit-appearance: slider-vertical;
+  writing-mode: bt-lr;
+  direction: rtl;
+  background: linear-gradient(to bottom, #1a1a1a 0%, #0a0a0a 100%);
+  outline: none;
+  border-radius: 8px;
+  padding: 8px 0;
+  border: 2px solid #2a2a2a;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+  cursor: ns-resize;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  align-self: stretch;
+}
+
+/* Nascondi completamente il thumb nativo */
+.mixer-volume-slider.slider-traktor::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.mixer-volume-slider.slider-traktor::-moz-range-thumb {
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  border: none !important;
+}
+
+/* Indicatore personalizzato che segue il valore */
+.mixer-volume-indicator {
+  position: absolute;
+  left: 50%;
+  top: auto;
+  width: 40px;
+  height: 20px;
+  background: linear-gradient(135deg, #4a90e2 0%, #6ba3e8 100%);
+  border-radius: 2px;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(74, 144, 226, 0.6), 0 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  z-index: 2;
+  transition: bottom 0.1s ease-out;
+  transform: translateX(-50%) translateY(50%);
+  margin: 0;
+}
+
+.mixer-volume-value {
+  font-size: 0.7rem;
+  color: #4a90e2;
+  font-weight: 600;
+}
+
 /* Filter Control */
 .filter-control-traktor {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
 }
 
 .filter-knob-wrapper-prime {
@@ -174,6 +265,49 @@
   padding: 0.3rem 0.6rem;
 }
 
+/* Classe comune per tutti gli slider - Stile rettangolare */
+.slider-traktor {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Stile rettangolare per slider orizzontali (crossfader, pitch) */
+.slider-traktor:not([orient="vertical"])::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 20px;
+  height: 40px;
+  background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
+  border-radius: 2px !important;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.8), 0 1px 2px rgba(0, 0, 0, 0.5);
+  border: 2px solid #333;
+  transition: all 0.2s;
+}
+
+.slider-traktor:not([orient="vertical"])::-webkit-slider-thumb:hover {
+  background: linear-gradient(135deg, #f0f0f0 0%, #d0d0d0 100%);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.slider-traktor:not([orient="vertical"])::-moz-range-thumb {
+  width: 20px;
+  height: 40px;
+  background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
+  border-radius: 2px !important;
+  cursor: pointer;
+  border: 2px solid #333;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.8), 0 1px 2px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s;
+}
+
+.slider-traktor:not([orient="vertical"])::-moz-range-thumb:hover {
+  background: linear-gradient(135deg, #f0f0f0 0%, #d0d0d0 100%);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
 /* Crossfader */
 .crossfader-container {
   position: absolute;
@@ -218,40 +352,6 @@
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-.crossfader-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.5);
-  border: 3px solid #333;
-  transition: all 0.2s;
-}
-
-.crossfader-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.9), 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-
-.crossfader-slider::-moz-range-thumb {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
-  border-radius: 50%;
-  cursor: pointer;
-  border: 3px solid #333;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.5);
-  transition: all 0.2s;
-}
-
-.crossfader-slider::-moz-range-thumb:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.9), 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-
 .crossfader-slider::-webkit-slider-runnable-track {
   width: 100%;
   height: 12px;
@@ -266,32 +366,20 @@
   border-radius: 6px;
 }
 
-.crossfader-indicator {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  transition: left 0.1s ease-out;
-}
-
-.crossfader-handle {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
-  border-radius: 50%;
-  border: 3px solid #333;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
-}
-
 
 /* Stili PrimeReact Knob personalizzati */
 .p-knob {
   color: #4a90e2 !important;
+  cursor: grab !important;
+}
+
+.p-knob:active {
+  cursor: grabbing !important;
 }
 
 .p-knob-text {
   fill: #4a90e2 !important;
-  font-size: 0.7rem !important;
+  font-size: 0.75rem !important;
   font-weight: 600 !important;
 }
 
@@ -301,11 +389,27 @@
 
 .p-knob-value {
   stroke: #4a90e2 !important;
-  stroke-width: 3 !important;
+  stroke-width: 4 !important;
+  cursor: grab !important;
+}
+
+.p-knob-value:active {
+  cursor: grabbing !important;
 }
 
 .p-knob-value:focus {
   outline: none !important;
+}
+
+/* Assicura che i knob siano interattivi */
+.p-knob svg {
+  cursor: grab !important;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.p-knob svg:active {
+  cursor: grabbing !important;
 }
 
 /* Responsive */

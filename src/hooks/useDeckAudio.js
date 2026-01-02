@@ -96,6 +96,100 @@ export function useDeckAudio({
   const loopEnabledRef = useRef(false);
   const loopTimeoutRef = useRef(null);
   
+  // Riferimento per i picchi della traccia
+  const peaksRef = useRef([]);
+  
+  /**
+   * Funzione helper per media dei canali stereo
+   */
+  const averageChannels = useCallback((buffer) => {
+    const left = buffer.getChannelData(0);
+    const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
+    const averaged = new Float32Array(left.length);
+    for (let i = 0; i < left.length; i++) {
+      averaged[i] = (left[i] + right[i]) / 2;
+    }
+    return averaged;
+  }, []);
+
+  /**
+   * Rileva i picchi nella traccia audio
+   * @param {AudioBuffer} audioBuffer - Il buffer audio da analizzare
+   * @returns {Array<number>} - Array di tempi (in secondi) dove si trovano i picchi
+   */
+  const detectPeaks = useCallback((audioBuffer) => {
+    if (!audioBuffer) return [];
+    
+    try {
+      const channelData = audioBuffer.numberOfChannels > 1 
+        ? averageChannels(audioBuffer) 
+        : audioBuffer.getChannelData(0);
+      const sampleRate = audioBuffer.sampleRate;
+      
+      // Calcola energia in finestre di 100ms
+      const windowSize = Math.floor(sampleRate * 0.1);
+      const hopSize = Math.floor(windowSize / 2);
+      const energyValues = [];
+      
+      for (let i = 0; i < channelData.length - windowSize; i += hopSize) {
+        let energy = 0;
+        for (let j = i; j < i + windowSize && j < channelData.length; j++) {
+          energy += channelData[j] * channelData[j];
+        }
+        energyValues.push(energy / windowSize);
+      }
+      
+      // Trova picchi usando soglia adattiva
+      const sortedValues = [...energyValues].sort((a, b) => a - b);
+      const threshold = sortedValues[Math.floor(sortedValues.length * 0.7)];
+      const minPeakDistance = Math.floor(0.3 * sampleRate / hopSize); // Minimo 0.3s tra picchi
+      
+      const peaks = [];
+      let lastPeakIndex = -minPeakDistance;
+      
+      for (let i = 1; i < energyValues.length - 1; i++) {
+        if (energyValues[i] > threshold && 
+            energyValues[i] > energyValues[i - 1] && 
+            energyValues[i] > energyValues[i + 1] &&
+            (i - lastPeakIndex) >= minPeakDistance) {
+          // Converti indice in tempo (secondi)
+          const time = (i * hopSize) / sampleRate;
+          peaks.push(time);
+          lastPeakIndex = i;
+        }
+      }
+      
+      console.log(`🎵 Rilevati ${peaks.length} picchi per Deck ${deckId}`);
+      return peaks;
+    } catch (error) {
+      console.error('Errore nel rilevamento dei picchi:', error);
+      return [];
+    }
+  }, [averageChannels, deckId]);
+
+  /**
+   * Trova il picco più vicino a un tempo target
+   * @param {number} targetTime - Tempo target in secondi
+   * @param {Array<number>} peaks - Array di tempi dei picchi
+   * @returns {number|null} - Il picco più vicino o null se non ci sono picchi
+   */
+  const findNearestPeak = useCallback((targetTime, peaks) => {
+    if (!peaks || peaks.length === 0) return null;
+    
+    let nearestPeak = peaks[0];
+    let minDistance = Math.abs(peaks[0] - targetTime);
+    
+    for (const peak of peaks) {
+      const distance = Math.abs(peak - targetTime);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestPeak = peak;
+      }
+    }
+    
+    return nearestPeak;
+  }, []);
+
   /**
    * Inizializza l'AudioContext se non esiste già
    * L'AudioContext è il "motore" della Web Audio API
@@ -187,6 +281,10 @@ export function useDeckAudio({
       setOriginalBPM(detectedBPMValue); // Salva il BPM originale della traccia
       setBPM(detectedBPMValue); // Imposta il BPM corrente al valore rilevato
       
+      // Rileva i picchi della traccia
+      const detectedPeaks = detectPeaks(audioBuffer);
+      peaksRef.current = detectedPeaks;
+      
       // Reset dell'offset per la nuova traccia
       startOffsetRef.current = 0;
       
@@ -210,7 +308,7 @@ export function useDeckAudio({
       console.error('Errore nel caricamento del file audio:', error);
       alert('Errore nel caricamento del file audio. Assicurati che sia un formato supportato (MP3, WAV, OGG).');
     }
-  }, [initAudioContext, deckId, saveAudioFile]);
+  }, [initAudioContext, deckId, saveAudioFile, detectPeaks]);
   
   /**
    * Crea e avvia un nuovo source node per la riproduzione
@@ -313,9 +411,28 @@ export function useDeckAudio({
   
   /**
    * Avvia o riprende la riproduzione
+   * @param {Object} otherDeck - L'altro deck per la sincronizzazione (opzionale)
    */
-  const play = useCallback(() => {
+  const play = useCallback((otherDeck = null) => {
     if (!isLoaded || !audioContextRef.current) return;
+    
+    // Se sync è attivo e c'è un altro deck in riproduzione con picchi
+    if (syncEnabled && otherDeck && otherDeck.isPlaying && otherDeck.peaks && otherDeck.peaks.length > 0) {
+      const masterCurrentTime = otherDeck.currentTime;
+      
+      if (peaksRef.current.length > 0) {
+        // Trova il picco più vicino nella traccia slave al tempo corrente del master
+        // Questo fa partire la slave dal picco più vicino al punto in cui si trova il master
+        const targetPeak = findNearestPeak(masterCurrentTime, peaksRef.current);
+        
+        if (targetPeak !== null) {
+          // Vai al picco trovato
+          startOffsetRef.current = targetPeak;
+          setCurrentTime(targetPeak);
+          console.log(`🎯 Sync: Master a ${masterCurrentTime.toFixed(2)}s → Deck ${deckId} parte dal picco più vicino ${targetPeak.toFixed(2)}s`);
+        }
+      }
+    }
     
     // Se l'AudioContext è sospeso (spesso succede dopo un'interazione utente),
     // riprendilo
@@ -326,7 +443,7 @@ export function useDeckAudio({
     isPlayingRef.current = true;
     setIsPlaying(true);
     createAndStartSource(startOffsetRef.current || 0);
-  }, [isLoaded, createAndStartSource]);
+  }, [isLoaded, createAndStartSource, syncEnabled, findNearestPeak, deckId]);
   
   /**
    * Cerca una posizione specifica nel brano (seek)
@@ -605,6 +722,10 @@ export function useDeckAudio({
               setOriginalBPM(savedState.current.detectedBPM);
             }
             
+            // Rileva i picchi della traccia ripristinata
+            const detectedPeaks = detectPeaks(audioBuffer);
+            peaksRef.current = detectedPeaks;
+            
             // Ripristina la posizione salvata se presente
             if (savedState.current.currentTime) {
               startOffsetRef.current = savedState.current.currentTime;
@@ -625,7 +746,7 @@ export function useDeckAudio({
     };
     
     restoreAudioFile();
-  }, [deckId, initAudioContext, isLoaded, isRestoringAudio, loadSavedAudioFile]);
+  }, [deckId, initAudioContext, isLoaded, isRestoringAudio, loadSavedAudioFile, detectPeaks]);
   
   // Mostra un messaggio quando lo stato è stato ripristinato
   useEffect(() => {
@@ -683,6 +804,9 @@ export function useDeckAudio({
     
     // BPM (solo valore di riferimento, non cambia la velocità!)
     setBPM,
+    
+    // Picchi per sincronizzazione
+    peaks: peaksRef.current,
     
     // Pitch/Tempo (questo controlla la velocità reale!)
     pitchValue,

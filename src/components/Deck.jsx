@@ -17,15 +17,16 @@ import './Deck.css';
 function Deck({ 
   deckLabel, 
   deckAudio, 
-  syncEnabled, 
-  onSyncToggle 
+  otherDeck,
+  syncEnabled
 }) {
   
   const handlePlayPause = () => {
     if (deckAudio.isPlaying) {
       deckAudio.pause();
     } else {
-      deckAudio.play();
+      // Passa l'altro deck per la sincronizzazione con i picchi
+      deckAudio.play(otherDeck);
     }
   };
   
@@ -46,13 +47,6 @@ function Deck({
         </div>
         
         <div className="deck-traktor-controls-top">
-          <button 
-            className={`deck-btn sync-btn-traktor ${syncEnabled ? 'active' : ''}`}
-            onClick={onSyncToggle}
-            title="Sync"
-          >
-            SYNC
-          </button>
           <button 
             className="deck-btn master-btn"
             title="Master"
@@ -147,7 +141,7 @@ function Deck({
               value={deckAudio.pitchValue}
               onChange={(e) => !syncEnabled && deckAudio.setPitchValue(parseFloat(e.target.value))}
               disabled={syncEnabled}
-              className="bpm-slider pitch-slider"
+              className="bpm-slider pitch-slider slider-traktor"
             />
               <div className="bpm-center-marker pitch-center" title="0% (velocità originale)"></div>
             </div>
@@ -168,22 +162,6 @@ function Deck({
           </div>
         </div>
       )}
-      
-      {/* Fader verticale a destra */}
-      <div className="deck-fader-container">
-        <div className="deck-fader-label">VOL</div>
-        <input
-          type="range"
-          min="0"
-          max="2"
-          step="0.01"
-          value={deckAudio.gain}
-          onChange={(e) => deckAudio.setGain(parseFloat(e.target.value))}
-          className="deck-fader"
-          orient="vertical"
-        />
-        <div className="deck-fader-value">{(deckAudio.gain * 100).toFixed(0)}%</div>
-      </div>
     </div>
   );
 }

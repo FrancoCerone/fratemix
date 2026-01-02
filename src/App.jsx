@@ -16,52 +16,49 @@ import './App.css';
  * - Persistenza automatica dello stato
  */
 function App() {
-  // Stato per la sincronizzazione - con persistenza
-  const [syncEnabledA, setSyncEnabledA] = useLocalStorage('fratemix_syncA', false);
-  const [syncEnabledB, setSyncEnabledB] = useLocalStorage('fratemix_syncB', false);
+  // Stato per la sincronizzazione - unico stato globale
+  const [syncEnabled, setSyncEnabled] = useLocalStorage('fratemix_sync', false);
   
   // Inizializza i due deck con gli hook personalizzati
-  // Nota: inizialmente senza sync, verrà gestito tramite useEffect
   const deckA = useDeckAudio({
     deckId: 'A',
-    initialBPM: 128
+    initialBPM: 128,
+    syncEnabled: syncEnabled
   });
   
   const deckB = useDeckAudio({
     deckId: 'B',
-    initialBPM: 128
+    initialBPM: 128,
+    syncEnabled: syncEnabled
   });
   
-  // Gestisce la sincronizzazione: quando sync è attivo su un deck,
-  // aggiorna il suo BPM per seguire l'altro deck
+  // Gestisce la sincronizzazione BPM: quando sync è attivo,
+  // il deck che non è master segue il BPM del master
   React.useEffect(() => {
-    if (syncEnabledA && deckB.bpm !== deckA.bpm) {
-      deckA.setBPM(deckB.bpm);
+    if (syncEnabled) {
+      // Se A sta suonando, B segue A. Altrimenti A segue B
+      if (deckA.isPlaying && !deckB.isPlaying) {
+        if (deckB.bpm !== deckA.bpm) {
+          deckB.setBPM(deckA.bpm);
+        }
+      } else if (deckB.isPlaying && !deckA.isPlaying) {
+        if (deckA.bpm !== deckB.bpm) {
+          deckA.setBPM(deckB.bpm);
+        }
+      } else if (deckA.isPlaying && deckB.isPlaying) {
+        // Se entrambi stanno suonando, usa il BPM del primo che ha iniziato
+        // Per semplicità, usa il BPM di A
+        if (deckB.bpm !== deckA.bpm) {
+          deckB.setBPM(deckA.bpm);
+        }
+      }
     }
-  }, [syncEnabledA, deckB.bpm, deckA.bpm, deckA.setBPM]);
-  
-  React.useEffect(() => {
-    if (syncEnabledB && deckA.bpm !== deckB.bpm) {
-      deckB.setBPM(deckA.bpm);
-    }
-  }, [syncEnabledB, deckA.bpm, deckB.bpm, deckB.setBPM]);
+  }, [syncEnabled, deckA.isPlaying, deckB.isPlaying, deckA.bpm, deckB.bpm, deckA.setBPM, deckB.setBPM]);
   
   // Gestione toggle sync
-  const handleSyncToggleA = useCallback(() => {
-    setSyncEnabledA(!syncEnabledA);
-    // Se attiviamo sync su A, disattiviamo su B (mutualmente esclusivo)
-    if (!syncEnabledA) {
-      setSyncEnabledB(false);
-    }
-  }, [syncEnabledA, setSyncEnabledA, setSyncEnabledB]);
-  
-  const handleSyncToggleB = useCallback(() => {
-    setSyncEnabledB(!syncEnabledB);
-    // Se attiviamo sync su B, disattiviamo su A (mutualmente esclusivo)
-    if (!syncEnabledB) {
-      setSyncEnabledA(false);
-    }
-  }, [syncEnabledB, setSyncEnabledA, setSyncEnabledB]);
+  const handleSyncToggle = useCallback(() => {
+    setSyncEnabled(!syncEnabled);
+  }, [syncEnabled, setSyncEnabled]);
   
   // Mostra un messaggio di benvenuto quando lo stato viene ripristinato
   const [showRestoreMessage, setShowRestoreMessage] = useState(false);
@@ -109,10 +106,19 @@ function App() {
           <div className="master-tempo">
             <div className="master-tempo-label">MASTER TEMPO</div>
             <div className="master-tempo-value">
-              {syncEnabledA ? deckB.bpm.toFixed(2) : syncEnabledB ? deckA.bpm.toFixed(2) : '128.00'}
+              {syncEnabled && deckA.isPlaying ? deckA.bpm.toFixed(2) : 
+               syncEnabled && deckB.isPlaying ? deckB.bpm.toFixed(2) : 
+               deckA.isPlaying ? deckA.bpm.toFixed(2) :
+               deckB.isPlaying ? deckB.bpm.toFixed(2) : '128.00'}
             </div>
             <div className="master-tempo-controls">
-              <button className="master-btn-small">MASTER</button>
+              <button 
+                className={`master-btn-small ${syncEnabled ? 'active' : ''}`}
+                onClick={handleSyncToggle}
+                title="Sync"
+              >
+                SYNC
+              </button>
             </div>
           </div>
         </div>
@@ -134,8 +140,8 @@ function App() {
           <Deck
             deckLabel="A"
             deckAudio={deckA}
-            syncEnabled={syncEnabledA}
-            onSyncToggle={handleSyncToggleA}
+            otherDeck={deckB}
+            syncEnabled={syncEnabled}
           />
           
           <Mixer deckA={deckA} deckB={deckB} />
@@ -143,8 +149,8 @@ function App() {
           <Deck
             deckLabel="B"
             deckAudio={deckB}
-            syncEnabled={syncEnabledB}
-            onSyncToggle={handleSyncToggleB}
+            otherDeck={deckA}
+            syncEnabled={syncEnabled}
           />
         </main>
         

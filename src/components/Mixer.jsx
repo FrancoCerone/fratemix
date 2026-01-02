@@ -20,6 +20,96 @@ function Mixer({ deckA, deckB }) {
   // Usa useLocalStorage per persistere il valore del crossfader
   const [crossfader, setCrossfader] = useLocalStorage('fratemix_crossfader', 0.5); // 0 = solo A, 1 = solo B, 0.5 = mix 50/50
   
+  // Handler per il drag verticale degli slider del volume
+  const handleVolumeChange = (deck, e) => {
+    const value = parseFloat(e.target.value);
+    if (deck === 'A') {
+      deckA.setGain(value);
+    } else {
+      deckB.setGain(value);
+    }
+  };
+
+  // Handler personalizzato per drag verticale
+  const handleVolumeMouseDown = (deck, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const slider = e.currentTarget;
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    
+    const updateValue = (clientY) => {
+      const rect = slider.getBoundingClientRect();
+      const y = clientY - rect.top;
+      const height = rect.height;
+      const percentage = 1 - (y / height); // Invertito perché parte da sopra
+      const value = min + (max - min) * Math.max(0, Math.min(1, percentage));
+      
+      if (deck === 'A') {
+        deckA.setGain(value);
+      } else {
+        deckB.setGain(value);
+      }
+    };
+    
+    const handleMouseMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      moveEvent.stopPropagation();
+      updateValue(moveEvent.clientY);
+    };
+    
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    // Gestisci anche il click iniziale
+    updateValue(e.clientY);
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Handler per touch (mobile)
+  const handleVolumeTouchStart = (deck, e) => {
+    e.preventDefault();
+    const slider = e.currentTarget;
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    
+    const updateValue = (clientY) => {
+      const rect = slider.getBoundingClientRect();
+      const y = clientY - rect.top;
+      const height = rect.height;
+      const percentage = 1 - (y / height);
+      const value = min + (max - min) * Math.max(0, Math.min(1, percentage));
+      
+      if (deck === 'A') {
+        deckA.setGain(value);
+      } else {
+        deckB.setGain(value);
+      }
+    };
+    
+    const handleTouchMove = (moveEvent) => {
+      if (moveEvent.touches.length > 0) {
+        moveEvent.preventDefault();
+        updateValue(moveEvent.touches[0].clientY);
+      }
+    };
+    
+    const handleTouchEnd = () => {
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+    
+    if (e.touches.length > 0) {
+      updateValue(e.touches[0].clientY);
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+    }
+  };
+  
   // Aggiorna i gain dei deck in base al crossfader
   React.useEffect(() => {
     // Crossfader: 0 = solo A (gain A = 1, gain B = 0), 1 = solo B (gain A = 0, gain B = 1)
@@ -49,9 +139,9 @@ function Mixer({ deckA, deckB }) {
             onChange={(e) => onChange(e.value)}
             min={-12}
             max={12}
-            step={0.1}
             disabled={kill}
-            size={50}
+            size={75}
+            readOnly={false}
             valueTemplate={`${value > 0 ? '+' : ''}${value.toFixed(1)}dB`}
           />
           <label className="eq-label-traktor">{label}</label>
@@ -82,32 +172,11 @@ function Mixer({ deckA, deckB }) {
             min={-1}
             max={1}
             step={0.01}
-            size={60}
+            size={75}
+            readOnly={false}
             valueTemplate={filterType}
           />
           <label className="filter-label-traktor">FLTR</label>
-        </div>
-      </div>
-    );
-  };
-  
-  /**
-   * Componente per i controlli Gain con knob PrimeReact
-   */
-  const GainControl = ({ value, onChange }) => {
-    return (
-      <div className="gain-control-traktor">
-        <div className="gain-knob-wrapper-prime">
-          <Knob
-            value={value}
-            onChange={(e) => onChange(e.value)}
-            min={0}
-            max={2}
-            step={0.01}
-            size={60}
-            valueTemplate={`${(value * 100).toFixed(0)}%`}
-          />
-          <label className="gain-label-traktor">GAIN</label>
         </div>
       </div>
     );
@@ -117,33 +186,60 @@ function Mixer({ deckA, deckB }) {
     <div className="mixer-traktor">
       {/* Deck A Section (Left) */}
       <div className="mixer-section-traktor mixer-section-a">
-        <GainControl value={deckA.gain} onChange={deckA.setGain} />
-        
-        <div className="eq-row-traktor">
-          <EQControl
-            label="HI"
-            value={deckA.eqHigh}
-            onChange={deckA.setEqHigh}
-            kill={deckA.eqHighKill}
-            onKillToggle={() => deckA.setEqHighKill(!deckA.eqHighKill)}
-          />
-          <EQControl
-            label="MO"
-            value={deckA.eqMid}
-            onChange={deckA.setEqMid}
-            kill={deckA.eqMidKill}
-            onKillToggle={() => deckA.setEqMidKill(!deckA.eqMidKill)}
-          />
-          <EQControl
-            label="LO"
-            value={deckA.eqLow}
-            onChange={deckA.setEqLow}
-            kill={deckA.eqLowKill}
-            onKillToggle={() => deckA.setEqLowKill(!deckA.eqLowKill)}
-          />
+        <div className="eq-panel-traktor">
+          {/* Volume Slider e Filter - Sinistra per Deck A */}
+          <div className="mixer-volume-container">
+            <div className="mixer-volume-label">VOL</div>
+            <div className="mixer-volume-slider-wrapper">
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="0.01"
+                value={deckA.gain}
+                onChange={(e) => handleVolumeChange('A', e)}
+                onInput={(e) => handleVolumeChange('A', e)}
+                onMouseDown={(e) => handleVolumeMouseDown('A', e)}
+                onTouchStart={(e) => handleVolumeTouchStart('A', e)}
+                className="mixer-volume-slider slider-traktor"
+                orient="vertical"
+              />
+              <div 
+                className="mixer-volume-indicator"
+                style={{ 
+                  bottom: `${(deckA.gain / 2) * 100}%`
+                }}
+              ></div>
+            </div>
+            <div className="mixer-volume-value">{(deckA.gain * 100).toFixed(0)}%</div>
+            <FilterControl value={deckA.filterValue} onChange={deckA.setFilterValue} />
+          </div>
+          
+          {/* EQ Controls - Verticale */}
+          <div className="eq-row-traktor">
+            <EQControl
+              label="HI"
+              value={deckA.eqHigh}
+              onChange={deckA.setEqHigh}
+              kill={deckA.eqHighKill}
+              onKillToggle={() => deckA.setEqHighKill(!deckA.eqHighKill)}
+            />
+            <EQControl
+              label="MO"
+              value={deckA.eqMid}
+              onChange={deckA.setEqMid}
+              kill={deckA.eqMidKill}
+              onKillToggle={() => deckA.setEqMidKill(!deckA.eqMidKill)}
+            />
+            <EQControl
+              label="LO"
+              value={deckA.eqLow}
+              onChange={deckA.setEqLow}
+              kill={deckA.eqLowKill}
+              onKillToggle={() => deckA.setEqLowKill(!deckA.eqLowKill)}
+            />
+          </div>
         </div>
-        
-        <FilterControl value={deckA.filterValue} onChange={deckA.setFilterValue} />
         
         <div className="mixer-buttons-traktor">
           <button className="mixer-btn-traktor">FX 1</button>
@@ -157,33 +253,60 @@ function Mixer({ deckA, deckB }) {
       
       {/* Deck B Section (Right) */}
       <div className="mixer-section-traktor mixer-section-b">
-        <GainControl value={deckB.gain} onChange={deckB.setGain} />
-        
-        <div className="eq-row-traktor">
-          <EQControl
-            label="HI"
-            value={deckB.eqHigh}
-            onChange={deckB.setEqHigh}
-            kill={deckB.eqHighKill}
-            onKillToggle={() => deckB.setEqHighKill(!deckB.eqHighKill)}
-          />
-          <EQControl
-            label="MO"
-            value={deckB.eqMid}
-            onChange={deckB.setEqMid}
-            kill={deckB.eqMidKill}
-            onKillToggle={() => deckB.setEqMidKill(!deckB.eqMidKill)}
-          />
-          <EQControl
-            label="LO"
-            value={deckB.eqLow}
-            onChange={deckB.setEqLow}
-            kill={deckB.eqLowKill}
-            onKillToggle={() => deckB.setEqLowKill(!deckB.eqLowKill)}
-          />
+        <div className="eq-panel-traktor">
+          {/* EQ Controls - Verticale */}
+          <div className="eq-row-traktor">
+            <EQControl
+              label="HI"
+              value={deckB.eqHigh}
+              onChange={deckB.setEqHigh}
+              kill={deckB.eqHighKill}
+              onKillToggle={() => deckB.setEqHighKill(!deckB.eqHighKill)}
+            />
+            <EQControl
+              label="MO"
+              value={deckB.eqMid}
+              onChange={deckB.setEqMid}
+              kill={deckB.eqMidKill}
+              onKillToggle={() => deckB.setEqMidKill(!deckB.eqMidKill)}
+            />
+            <EQControl
+              label="LO"
+              value={deckB.eqLow}
+              onChange={deckB.setEqLow}
+              kill={deckB.eqLowKill}
+              onKillToggle={() => deckB.setEqLowKill(!deckB.eqLowKill)}
+            />
+          </div>
+          
+          {/* Volume Slider e Filter - Destra per Deck B */}
+          <div className="mixer-volume-container">
+            <div className="mixer-volume-label">VOL</div>
+            <div className="mixer-volume-slider-wrapper">
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="0.01"
+                value={deckB.gain}
+                onChange={(e) => handleVolumeChange('B', e)}
+                onInput={(e) => handleVolumeChange('B', e)}
+                onMouseDown={(e) => handleVolumeMouseDown('B', e)}
+                onTouchStart={(e) => handleVolumeTouchStart('B', e)}
+                className="mixer-volume-slider slider-traktor"
+                orient="vertical"
+              />
+              <div 
+                className="mixer-volume-indicator"
+                style={{ 
+                  bottom: `${(deckB.gain / 2) * 100}%`
+                }}
+              ></div>
+            </div>
+            <div className="mixer-volume-value">{(deckB.gain * 100).toFixed(0)}%</div>
+            <FilterControl value={deckB.filterValue} onChange={deckB.setFilterValue} />
+          </div>
         </div>
-        
-        <FilterControl value={deckB.filterValue} onChange={deckB.setFilterValue} />
         
         <div className="mixer-buttons-traktor">
           <button className="mixer-btn-traktor">FX 1</button>
@@ -203,7 +326,7 @@ function Mixer({ deckA, deckB }) {
             step="0.01"
             value={crossfader}
             onChange={(e) => setCrossfader(parseFloat(e.target.value))}
-            className="crossfader-slider"
+            className="crossfader-slider slider-traktor"
             style={{
               background: `linear-gradient(to right, 
                 #4a90e2 0%, 
@@ -212,9 +335,6 @@ function Mixer({ deckA, deckB }) {
                 #e24a4a 100%)`
             }}
           />
-          <div className="crossfader-indicator" style={{ left: `${crossfader * 100}%` }}>
-            <div className="crossfader-handle"></div>
-          </div>
         </div>
         <div className="crossfader-label">B</div>
       </div>
