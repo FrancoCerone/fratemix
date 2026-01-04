@@ -157,6 +157,16 @@
   white-space: nowrap;
 }
 
+.remote-badge {
+  color: #4a90e2;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.track-item:hover .remote-badge {
+  opacity: 1;
+}
+
 .track-meta {
   display: flex;
   gap: 0.5rem;
