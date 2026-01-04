@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './WaveformDetail.css';
 
 /**
@@ -9,12 +9,6 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
   const canvasRef = useRef(null);
   const waveformDataRef = useRef(null);
   const [zoomLevel, setZoomLevel] = useState(4); // 4 secondi visibili
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [dragStartTime, setDragStartTime] = useState(0);
-  const [dragOffsetPixels, setDragOffsetPixels] = useState(0);
-  const [dragCurrentTime, setDragCurrentTime] = useState(0);
-  const animationFrameRef = useRef(null);
   
   /**
    * Estrae i dati del waveform ad alta risoluzione
@@ -56,6 +50,99 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
   }, [audioBuffer]);
   
   /**
+   * Calcola il centro della finestra visibile basandosi su currentTime
+   * Il cursore bianco è sempre al centro, quindi la finestra si centra su currentTime
+   * @returns {number} Il tempo al centro della finestra visibile (in secondi)
+   */
+  const calculateWindowCenterTime = () => {
+    const halfWindow = zoomLevel / 2;
+    
+    // Centra la finestra in modo che il cursore sia sempre al centro
+    // Se currentTime è vicino all'inizio, sposta il centro in avanti
+    if (currentTime < halfWindow) {
+      return halfWindow;
+    }
+    
+    // Se currentTime è vicino alla fine, sposta il centro indietro
+    if (currentTime > duration - halfWindow) {
+      return duration - halfWindow;
+    }
+    
+    // Altrimenti, il centro è esattamente currentTime
+    return currentTime;
+  };
+  
+  /**
+   * Calcola l'inizio e la fine della finestra visibile
+   * @param {number} windowCenterTime - Il tempo al centro della finestra
+   * @returns {{startTime: number, endTime: number, clampedStartTime: number, clampedEndTime: number}}
+   */
+  const calculateVisibleWindow = (windowCenterTime) => {
+    const halfWindow = zoomLevel / 2;
+    
+    // Calcola l'inizio e la fine della finestra visibile
+    // Durante il drag, questi valori possono essere negativi o > duration
+    const startTime = windowCenterTime - halfWindow;
+    const endTime = windowCenterTime + halfWindow;
+    
+    // Per il rendering, limitiamo i tempi alla durata della traccia
+    const clampedStartTime = Math.max(0, startTime);
+    const clampedEndTime = Math.min(duration, endTime);
+    
+    return { startTime, endTime, clampedStartTime, clampedEndTime };
+  };
+  
+  /**
+   * Calcola gli indici del waveform per la parte visibile
+   * @param {number} clampedStartTime - Inizio della finestra clampato
+   * @param {number} clampedEndTime - Fine della finestra clampata
+   * @returns {{clampedStartIndex: number, clampedEndIndex: number, visibleSamples: number}}
+   */
+  const calculateWaveformIndices = (clampedStartTime, clampedEndTime) => {
+    const waveformData = waveformDataRef.current;
+    if (!waveformData) return { clampedStartIndex: 0, clampedEndIndex: 0, visibleSamples: 0 };
+    
+    const totalSamples = waveformData.length;
+    const clampedStartIndex = Math.max(0, Math.floor((clampedStartTime / duration) * totalSamples));
+    const clampedEndIndex = Math.min(totalSamples, Math.ceil((clampedEndTime / duration) * totalSamples));
+    const visibleSamples = clampedEndIndex - clampedStartIndex;
+    
+    return { clampedStartIndex, clampedEndIndex, visibleSamples };
+  };
+  
+  /**
+   * Calcola la posizione X di una barra del waveform nel canvas
+   * @param {number} sampleTime - Il tempo del campione (in secondi)
+   * @param {number} startTime - Inizio della finestra visibile (non clampato)
+   * @param {number} endTime - Fine della finestra visibile (non clampato)
+   * @param {number} canvasWidth - Larghezza del canvas
+   * @returns {number} La posizione X della barra nel canvas
+   */
+  const calculateBarPosition = (sampleTime, startTime, endTime, canvasWidth) => {
+    const totalWindowTime = endTime - startTime;
+    if (totalWindowTime <= 0) return 0;
+    
+    // Calcola l'offset X per le aree prima dell'inizio della traccia
+    // Se startTime < 0, dobbiamo spostare il rendering a destra per mostrare l'area nera
+    const offsetX = startTime < 0 ? (Math.abs(startTime) / totalWindowTime) * canvasWidth : 0;
+    
+    // Calcola la posizione X basata sul progresso nella finestra
+    const progressInWindow = (sampleTime - startTime) / totalWindowTime;
+    return offsetX + progressInWindow * canvasWidth;
+  };
+  
+  /**
+   * Calcola il tempo corrispondente al cursore bianco (sempre al centro del canvas)
+   * @param {number} windowCenterTime - Il tempo al centro della finestra visibile
+   * @returns {number} Il tempo corrispondente al cursore bianco
+   */
+  const getCursorTime = (windowCenterTime) => {
+    // Il cursore bianco è sempre al centro del canvas
+    // Il centro del canvas corrisponde al centro della finestra visibile
+    return windowCenterTime;
+  };
+  
+  /**
    * Disegna il waveform zoomato sulla sezione corrente
    */
   const drawWaveform = () => {
@@ -76,53 +163,48 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, width, height);
     
-    // Calcola la finestra visibile basata sullo zoom
-    const halfWindow = zoomLevel / 2;
+    // Calcola il centro della finestra visibile
+    const windowCenterTime = calculateWindowCenterTime();
     
-    // Durante il drag, mantieni la finestra visibile fissa al tempo iniziale del drag
-    // e mostra solo il tempo corrente che cambia
-    let effectiveTime = currentTime;
-    let windowCenterTime = currentTime;
+    // Calcola la finestra visibile
+    const { startTime, endTime, clampedStartTime, clampedEndTime } = calculateVisibleWindow(windowCenterTime);
     
-    if (isDragging && dragStartTime !== undefined) {
-      // Usa il tempo corrente calcolato dal drag
-      effectiveTime = dragCurrentTime || dragStartTime;
-      // Ma mantieni la finestra visibile centrata sul tempo iniziale del drag
-      windowCenterTime = dragStartTime;
-    }
-    
-    const startTime = Math.max(0, windowCenterTime - halfWindow);
-    const endTime = Math.min(duration, windowCenterTime + halfWindow);
-    
-    // Mappa tempo a indici del waveform
-    const waveformData = waveformDataRef.current;
-    const totalSamples = waveformData.length;
-    const startIndex = Math.floor((startTime / duration) * totalSamples);
-    const endIndex = Math.ceil((endTime / duration) * totalSamples);
-    const visibleSamples = endIndex - startIndex;
+    // Calcola gli indici del waveform visibile
+    const { clampedStartIndex, clampedEndIndex, visibleSamples } = calculateWaveformIndices(clampedStartTime, clampedEndTime);
     
     if (visibleSamples <= 0) return;
     
-    const barWidth = width / visibleSamples;
+    const waveformData = waveformDataRef.current;
+    const totalSamples = waveformData.length;
+    const totalWindowTime = endTime - startTime;
     
-    // Disegna le barre del waveform con dettaglio
+    // Calcola la larghezza di ogni barra
+    const barWidth = totalWindowTime > 0 ? (width / (totalWindowTime / (zoomLevel / totalSamples))) : 0;
+    
+    // Il cursore bianco è sempre al centro e corrisponde a currentTime
+    // (non windowCenterTime, perché windowCenterTime può essere aggiustato per centrare la finestra)
+    const cursorTime = currentTime;
+    
+    // Disegna le barre del waveform
     for (let i = 0; i < visibleSamples; i++) {
-      const dataIndex = startIndex + i;
-      if (dataIndex >= totalSamples) break;
+      const dataIndex = clampedStartIndex + i;
+      if (dataIndex < 0 || dataIndex >= totalSamples) continue;
       
+      // Estrae i dati del waveform per questo campione
       const { max, min, rms } = waveformData[dataIndex];
       
       const maxHeight = Math.abs(max) * centerY * 0.95;
       const minHeight = Math.abs(min) * centerY * 0.95;
       const rmsHeight = rms * centerY * 0.95;
       
-      const x = i * barWidth;
+      // Calcola il tempo del campione
+      const sampleTime = (dataIndex / totalSamples) * duration;
       
-      // Calcola il tempo di questo campione
-      const sampleTime = startTime + (i / visibleSamples) * (endTime - startTime);
-      // Durante il drag, confronta con il tempo corrente del drag
-      const compareTime = isDragging ? (dragCurrentTime || dragStartTime) : currentTime;
-      const isPast = sampleTime < compareTime;
+      // Calcola la posizione X della barra nel canvas
+      const x = calculateBarPosition(sampleTime, startTime, endTime, width);
+      
+      // Determina se il campione è passato o futuro rispetto al cursore (currentTime)
+      const isPast = sampleTime < cursorTime;
       
       // Colore basato su se è passato o futuro
       const baseColor = isPast 
@@ -155,14 +237,19 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
     }
     
     // Grid verticali (ogni secondo)
+    // Disegna le linee solo per i secondi che sono dentro la traccia
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.lineWidth = 1;
-    for (let t = Math.ceil(startTime); t < endTime; t++) {
-      const x = ((t - startTime) / (endTime - startTime)) * width;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-      ctx.stroke();
+    for (let t = Math.ceil(clampedStartTime); t < clampedEndTime; t++) {
+      // Calcola la posizione X della linea usando il metodo dedicato
+      const x = calculateBarPosition(t, startTime, endTime, width);
+      // Disegna solo se la linea è dentro il canvas
+      if (x >= 0 && x <= width) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
     }
     
     // Linea centrale
@@ -178,7 +265,7 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
   };
   
   /**
-   * Disegna il playhead nella posizione corretta
+   * Disegna il playhead sempre al centro
    */
   const drawPlayhead = () => {
     if (!canvasRef.current) return;
@@ -188,22 +275,8 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
     const width = canvas.width;
     const height = canvas.height;
     
-    // Durante il drag, calcola la posizione X del playhead in base al tempo corrente
-    let x = width / 2; // Default: centro
-    
-    if (isDragging && dragCurrentTime !== undefined && dragStartTime !== undefined) {
-      // Calcola la posizione X del playhead in base al tempo corrente del drag
-      const halfWindow = zoomLevel / 2;
-      const startTime = Math.max(0, dragStartTime - halfWindow);
-      const endTime = Math.min(duration, dragStartTime + halfWindow);
-      const timeRange = endTime - startTime;
-      
-      if (timeRange > 0) {
-        const progress = (dragCurrentTime - startTime) / timeRange;
-        x = progress * width;
-        x = Math.max(0, Math.min(width, x));
-      }
-    }
+    // Il playhead è sempre al centro
+    const x = width / 2;
     
     // Linea playhead luminosa
     ctx.strokeStyle = '#ffffff';
@@ -226,126 +299,35 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
   };
   
   /**
-   * Calcola il tempo corrispondente a una posizione X nel canvas
-   * Durante il drag, usa il tempo corrente come riferimento per la finestra visibile
-   */
-  const getTimeFromX = useCallback((x, canvas, referenceTime) => {
-    if (!canvas || !duration) return referenceTime;
-    
-    const width = canvas.width;
-    const halfWindow = zoomLevel / 2;
-    
-    // Calcola la finestra visibile basata sul tempo di riferimento
-    const startTime = Math.max(0, referenceTime - halfWindow);
-    const endTime = Math.min(duration, referenceTime + halfWindow);
-    const timeRange = endTime - startTime;
-    
-    // La posizione X nel canvas corrisponde a un tempo nella finestra visibile
-    const progress = Math.max(0, Math.min(1, x / width));
-    const time = startTime + progress * timeRange;
-    
-    return Math.max(0, Math.min(duration, time));
-  }, [duration, zoomLevel]);
-
-  /**
-   * Inizio drag
-   */
-  const handleMouseDown = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left; // Posizione relativa al canvas
-    
-    // Calcola il tempo corrispondente al punto dove l'utente ha cliccato
-    const clickTime = getTimeFromX(x, canvas, currentTime);
-    
-    setIsDragging(true);
-    setDragStartX(x);
-    setDragStartTime(clickTime);
-    setDragCurrentTime(clickTime);
-    setDragOffsetPixels(0);
-    e.preventDefault();
-  };
-  
-  /**
-   * Drag in corso - calcola il tempo dal delta X
-   */
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
-    
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const currentX = e.clientX - rect.left; // Posizione relativa al canvas
-    
-    // Calcola il delta X (positivo = drag a destra, negativo = drag a sinistra)
-    const deltaX = currentX - dragStartX;
-    
-    // Converti delta X in delta tempo usando la scala corrente
-    const pixelsPerSecond = canvas.width / zoomLevel;
-    // Drag a sinistra (deltaX negativo) = andare avanti nel tempo (deltaTime positivo)
-    // Drag a destra (deltaX positivo) = andare indietro nel tempo (deltaTime negativo)
-    const deltaTime = -deltaX / pixelsPerSecond;
-    
-    // Calcola il nuovo tempo
-    const newTime = dragStartTime + deltaTime;
-    const clampedTime = Math.max(0, Math.min(duration, newTime));
-    
-    // Aggiorna il tempo corrente del drag
-    setDragCurrentTime(clampedTime);
-    
-    // Aggiorna l'offset in pixel per il rendering visivo
-    setDragOffsetPixels(deltaX);
-    
-    e.preventDefault();
-  };
-  
-  /**
-   * Fine drag - fai seek al tempo calcolato
-   */
-  const handleMouseUp = (e) => {
-    if (isDragging && onSeek && duration) {
-      const canvas = canvasRef.current;
-      if (canvas && Math.abs(dragOffsetPixels) > 2 && dragCurrentTime !== undefined) {
-        // Usa il tempo corrente calcolato durante il drag
-        onSeek(dragCurrentTime);
-      }
-      
-      setIsDragging(false);
-      setDragOffsetPixels(0);
-      setDragCurrentTime(0);
-    }
-  };
-  
-  /**
-   * Mouse esce dal canvas durante drag
-   */
-  const handleMouseLeave = () => {
-    // Non terminare il drag, continua a seguire il mouse globalmente
-  };
-  
-  /**
-   * Click per cercare (solo se non era un drag)
+   * Click per cercare una posizione nella traccia
+   * Calcola il tempo corrispondente alla posizione X cliccata e fa seek
    */
   const handleCanvasClick = (e) => {
-    // Non fare seek se era un drag
-    if (Math.abs(dragOffsetPixels) > 2) return;
-    
     if (!duration || !onSeek) return;
     
     const canvas = canvasRef.current;
+    if (!canvas) return;
+    
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
+    const x = e.clientX - rect.left; // Posizione X del click relativa al canvas
+    
+    // Calcola la finestra visibile corrente
+    const windowCenterTime = calculateWindowCenterTime();
+    const halfWindow = zoomLevel / 2;
+    const startTime = windowCenterTime - halfWindow;
+    const endTime = windowCenterTime + halfWindow;
+    const totalWindowTime = endTime - startTime;
+    
+    // Calcola il progresso nella finestra (0 = inizio finestra, 1 = fine finestra)
     const progress = x / canvas.width;
     
-    const halfWindow = zoomLevel / 2;
-    const startTime = Math.max(0, currentTime - halfWindow);
-    const endTime = Math.min(duration, currentTime + halfWindow);
+    // Calcola il tempo corrispondente alla posizione cliccata
+    const seekTime = startTime + progress * totalWindowTime;
     
-    const seekTime = startTime + progress * (endTime - startTime);
-    onSeek(seekTime);
+    // Limita il tempo tra 0 e duration per evitare valori invalidi
+    const clampedSeekTime = Math.max(0, Math.min(duration, seekTime));
+    
+    onSeek(clampedSeekTime);
   };
   
   /**
@@ -358,13 +340,18 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
   };
   
   /**
-   * Aggiorna quando cambia il tempo, zoom o offset drag
+   * Aggiorna quando cambia il tempo, zoom o durata
+   * Durante il play, currentTime cambia continuamente e la finestra si aggiorna
+   * Quando si clicca sulla traccia, currentTime cambia e la finestra si riposiziona
+   * La finestra si centra sempre su currentTime (con il cursore bianco al centro)
    */
   useEffect(() => {
-    if (waveformDataRef.current) {
+    if (waveformDataRef.current && duration > 0) {
+      // Forza il ridisegno quando cambia currentTime
+      // Questo assicura che la finestra si riposizioni correttamente
       drawWaveform();
     }
-  }, [currentTime, duration, zoomLevel, isDragging, dragOffsetPixels, dragStartTime, dragCurrentTime]);
+  }, [currentTime, duration, zoomLevel]);
   
   /**
    * Ridisegna al resize
@@ -380,41 +367,12 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
-  /**
-   * Cleanup animation frame al unmount
-   */
-  useEffect(() => {
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, []);
-  
-  /**
-   * Event listeners per drag globale
-   */
-  useEffect(() => {
-    if (isDragging) {
-      const handleMove = (e) => handleMouseMove(e);
-      const handleUp = (e) => handleMouseUp(e);
-      
-      window.addEventListener('mousemove', handleMove);
-      window.addEventListener('mouseup', handleUp);
-      
-      return () => {
-        window.removeEventListener('mousemove', handleMove);
-        window.removeEventListener('mouseup', handleUp);
-      };
-    }
-  }, [isDragging, dragStartX, dragStartTime, dragOffsetPixels, duration, zoomLevel, onSeek]);
   
   return (
     <div className="waveform-detail-container">
       <div className="waveform-detail-header">
         <span className="zoom-label">
-          Zoom: {zoomLevel.toFixed(1)}s 
-          {isDragging && <span className="drag-indicator"> (dragging...)</span>}
+          Zoom: {zoomLevel.toFixed(1)}s
         </span>
         <div className="zoom-controls">
           <button onClick={() => setZoomLevel(prev => Math.max(2, prev - 1))} title="Zoom In">+</button>
@@ -423,13 +381,11 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
       </div>
       <canvas 
         ref={canvasRef} 
-        className={`waveform-detail-canvas ${isDragging ? 'dragging' : ''}`}
+        className="waveform-detail-canvas"
         onClick={handleCanvasClick}
-        onMouseDown={handleMouseDown}
-        onMouseLeave={handleMouseLeave}
         onWheel={handleWheel}
         style={{ 
-          cursor: isDragging ? 'grabbing' : 'grab'
+          cursor: onSeek ? 'pointer' : 'default'
         }}
       />
     </div>

@@ -94,7 +94,7 @@ function App() {
     <div className="app">
       <header className="app-header">
         <div className="header-left">
-          <h1>FRATEMIX</h1>
+          <h1>FRATEMIX by Fratels&Brothers</h1>
           {showRestoreMessage && (
             <div className="restore-message">
               ✅ Sessione ripristinata
