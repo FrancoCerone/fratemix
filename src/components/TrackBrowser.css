@@ -5,8 +5,18 @@
   display: flex;
   flex-direction: column;
   min-height: 150px;
-  max-height: 50%;
+  max-height: 60%;
   overflow: hidden;
+}
+
+/* Cursore globale durante il resize */
+.track-browser.resizing {
+  cursor: ns-resize !important;
+}
+
+.track-browser.resizing * {
+  cursor: ns-resize !important;
+  user-select: none !important;
 }
 
 .browser-resize-handle {
@@ -14,25 +24,36 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 8px;
+  height: 10px;
   background: #1a1a1a;
-  cursor: row-resize;
+  cursor: ns-resize;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10;
   transition: background 0.2s;
+  user-select: none;
 }
 
 .browser-resize-handle:hover {
   background: #2a2a2a;
 }
 
+.browser-resize-handle:active,
+.browser-resize-handle.resizing {
+  background: #3a3a3a;
+}
+
 .resize-indicator {
-  width: 40px;
-  height: 3px;
+  width: 60px;
+  height: 4px;
   background: #4a4a4a;
-  border-radius: 2px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.browser-resize-handle:hover .resize-indicator {
+  background: #5a5a5a;
 }
 
 .browser-header {

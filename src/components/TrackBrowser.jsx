@@ -165,29 +165,44 @@ function TrackBrowser({ onLoadTrack, deckA, deckB }) {
    * Gestisce il resize del browser
    */
   const handleResizeStart = (e) => {
+    e.preventDefault();
     setIsResizing(true);
     resizeStartYRef.current = e.clientY;
     resizeStartHeightRef.current = browserHeight;
-    document.addEventListener('mousemove', handleResizeMove);
-    document.addEventListener('mouseup', handleResizeEnd);
   };
   
-  const handleResizeMove = (e) => {
+  const handleResizeMove = useCallback((e) => {
     if (!isResizing) return;
     
-    const deltaY = resizeStartYRef.current - e.clientY; // Negativo quando si va su
+    e.preventDefault();
+    
+    const deltaY = resizeStartYRef.current - e.clientY; // Positivo quando si va su
     const windowHeight = window.innerHeight;
     const deltaPercent = (deltaY / windowHeight) * 100;
-    const newHeight = Math.max(10, Math.min(50, resizeStartHeightRef.current + deltaPercent));
+    const newHeight = Math.max(10, Math.min(60, resizeStartHeightRef.current + deltaPercent));
     
     setBrowserHeight(newHeight);
-  };
+  }, [isResizing, browserHeight]);
   
-  const handleResizeEnd = () => {
+  const handleResizeEnd = useCallback(() => {
     setIsResizing(false);
-    document.removeEventListener('mousemove', handleResizeMove);
-    document.removeEventListener('mouseup', handleResizeEnd);
-  };
+  }, []);
+  
+  /**
+   * Event listeners globali per il resize
+   * Permette di continuare il resize anche quando il mouse esce dal handle
+   */
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeEnd);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleResizeMove);
+        document.removeEventListener('mouseup', handleResizeEnd);
+      };
+    }
+  }, [isResizing, handleResizeMove, handleResizeEnd]);
   
   /**
    * Formatta la dimensione del file
@@ -215,7 +230,7 @@ function TrackBrowser({ onLoadTrack, deckA, deckB }) {
   
   return (
     <div 
-      className="track-browser"
+      className={`track-browser ${isResizing ? 'resizing' : ''}`}
       ref={browserRef}
       style={{ height: `${browserHeight}%` }}
       onDragOver={handleDragOver}
@@ -223,9 +238,8 @@ function TrackBrowser({ onLoadTrack, deckA, deckB }) {
     >
       {/* Resize handle */}
       <div 
-        className="browser-resize-handle"
+        className={`browser-resize-handle ${isResizing ? 'resizing' : ''}`}
         onMouseDown={handleResizeStart}
-        style={{ cursor: isResizing ? 'ns-resize' : 'row-resize' }}
       >
         <div className="resize-indicator"></div>
       </div>
