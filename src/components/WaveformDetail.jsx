@@ -365,13 +365,40 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
   /**
    * Fine drag - applica il seek al tempo corrispondente al cursore bianco
    * Il cursore bianco è sempre al centro, quindi il tempo è windowCenterTime
+   * Calcola il delta X finale per ottenere la posizione corretta
    */
   const handleMouseUp = useCallback((e) => {
     if (isDragging && onSeek && duration) {
-      // Il cursore bianco è sempre al centro, quindi il tempo corrisponde
-      // al centro della finestra visibile (dragWindowCenterTime)
-      const seekTime = Math.max(0, Math.min(duration, dragWindowCenterTime));
-      onSeek(seekTime);
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const currentX = e.clientX - rect.left; // Posizione X finale del mouse
+        
+        // Calcola il delta X finale
+        const deltaX = currentX - dragStartX;
+        
+        // Se non c'è stato movimento, usa il tempo corrente (come se non ci fosse stato drag)
+        if (deltaX === 0) {
+          // Imposta il tempo attuale come se il Drag&Drop non ci fosse stato
+          onSeek(currentTime);
+        } else {
+          // Converti il movimento in pixel in movimento in tempo
+          const pixelsPerSecond = canvas.width / zoomLevel;
+          
+          // Drag a sinistra (deltaX negativo) = spostare la finestra avanti nel tempo (deltaTime positivo)
+          // Drag a destra (deltaX positivo) = spostare la finestra indietro nel tempo (deltaTime negativo)
+          const deltaTime = -deltaX / pixelsPerSecond;
+          
+          // Calcola il tempo finale basandosi sul tempo iniziale e sul delta del drag
+          // correttamente proporzionato rispetto al centro
+          const finalWindowCenterTime = dragStartTime + deltaTime;
+          
+          // Il cursore bianco è sempre al centro, quindi il tempo corrisponde
+          // al centro della finestra visibile finale
+          const seekTime = Math.max(0, Math.min(duration, finalWindowCenterTime));
+          onSeek(seekTime);
+        }
+      }
     }
     
     // Reset dello stato del drag
@@ -379,7 +406,7 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
     setDragStartX(0);
     setDragStartTime(0);
     setDragWindowCenterTime(0);
-  }, [isDragging, onSeek, duration, dragWindowCenterTime]);
+  }, [isDragging, onSeek, duration, dragStartX, dragStartTime, zoomLevel, currentTime]);
   
   /**
    * Click per cercare una posizione nella traccia (solo se non era un drag)
