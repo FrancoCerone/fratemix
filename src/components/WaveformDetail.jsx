@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import './WaveformDetail.css';
 
 /**
@@ -9,6 +9,10 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
   const canvasRef = useRef(null);
   const waveformDataRef = useRef(null);
   const [zoomLevel, setZoomLevel] = useState(4); // 4 secondi visibili
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [dragStartTime, setDragStartTime] = useState(0);
+  const [dragWindowCenterTime, setDragWindowCenterTime] = useState(0);
   
   /**
    * Estrae i dati del waveform ad alta risoluzione
@@ -52,12 +56,18 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
   /**
    * Calcola il centro della finestra visibile basandosi su currentTime
    * Il cursore bianco è sempre al centro, quindi la finestra si centra su currentTime
+   * Durante il drag, usa dragWindowCenterTime per spostare la traccia
    * @returns {number} Il tempo al centro della finestra visibile (in secondi)
    */
   const calculateWindowCenterTime = () => {
+    // Durante il drag, usa il tempo calcolato dal movimento del mouse
+    if (isDragging && dragWindowCenterTime !== undefined) {
+      return dragWindowCenterTime;
+    }
+    
     const halfWindow = zoomLevel / 2;
     
-    // Centra la finestra in modo che il cursore sia sempre al centro
+    // Quando non è in drag, centra la finestra in modo che il cursore sia sempre al centro
     // Se currentTime è vicino all'inizio, sposta il centro in avanti
     if (currentTime < halfWindow) {
       return halfWindow;
@@ -299,10 +309,85 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
   };
   
   /**
-   * Click per cercare una posizione nella traccia
-   * Calcola il tempo corrispondente alla posizione X cliccata e fa seek
+   * Inizio drag - cattura la posizione iniziale del mouse e il tempo corrente
+   */
+  const handleMouseDown = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left; // Posizione X del mouse relativa al canvas
+    
+    // Calcola il tempo corrente al centro della finestra visibile
+    const windowCenterTime = calculateWindowCenterTime();
+    
+    // Attiva il drag e salva i valori iniziali
+    setIsDragging(true);
+    setDragStartX(x);
+    setDragStartTime(windowCenterTime);
+    setDragWindowCenterTime(windowCenterTime);
+    
+    e.preventDefault();
+  };
+  
+  /**
+   * Drag in corso - sposta la finestra visibile
+   * Il cursore bianco rimane sempre al centro, la traccia si sposta sotto
+   */
+  const handleMouseMove = useCallback((e) => {
+    if (!isDragging) return;
+    
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    
+    // Calcola quanto si è mosso il mouse
+    const deltaX = currentX - dragStartX;
+    
+    // Converti il movimento in pixel in movimento in tempo
+    const pixelsPerSecond = canvas.width / zoomLevel;
+    
+    // Drag a sinistra (deltaX negativo) = spostare la finestra avanti nel tempo
+    // Drag a destra (deltaX positivo) = spostare la finestra indietro nel tempo
+    const deltaTime = -deltaX / pixelsPerSecond;
+    
+    // Calcola il nuovo centro della finestra visibile
+    const newWindowCenterTime = dragStartTime + deltaTime;
+    
+    // Aggiorna il centro della finestra visibile durante il drag
+    setDragWindowCenterTime(newWindowCenterTime);
+    
+    e.preventDefault();
+  }, [isDragging, dragStartX, dragStartTime, zoomLevel]);
+  
+  /**
+   * Fine drag - applica il seek al tempo corrispondente al cursore bianco
+   * Il cursore bianco è sempre al centro, quindi il tempo è windowCenterTime
+   */
+  const handleMouseUp = useCallback((e) => {
+    if (isDragging && onSeek && duration) {
+      // Il cursore bianco è sempre al centro, quindi il tempo corrisponde
+      // al centro della finestra visibile (dragWindowCenterTime)
+      const seekTime = Math.max(0, Math.min(duration, dragWindowCenterTime));
+      onSeek(seekTime);
+    }
+    
+    // Reset dello stato del drag
+    setIsDragging(false);
+    setDragStartX(0);
+    setDragStartTime(0);
+    setDragWindowCenterTime(0);
+  }, [isDragging, onSeek, duration, dragWindowCenterTime]);
+  
+  /**
+   * Click per cercare una posizione nella traccia (solo se non era un drag)
    */
   const handleCanvasClick = (e) => {
+    // Non fare seek se era un drag
+    if (isDragging) return;
+    
     if (!duration || !onSeek) return;
     
     const canvas = canvasRef.current;
@@ -340,18 +425,18 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
   };
   
   /**
-   * Aggiorna quando cambia il tempo, zoom o durata
+   * Aggiorna quando cambia il tempo, zoom, durata o stato del drag
    * Durante il play, currentTime cambia continuamente e la finestra si aggiorna
    * Quando si clicca sulla traccia, currentTime cambia e la finestra si riposiziona
+   * Durante il drag, dragWindowCenterTime cambia e la traccia si sposta
    * La finestra si centra sempre su currentTime (con il cursore bianco al centro)
    */
   useEffect(() => {
     if (waveformDataRef.current && duration > 0) {
-      // Forza il ridisegno quando cambia currentTime
-      // Questo assicura che la finestra si riposizioni correttamente
+      // Forza il ridisegno quando cambia currentTime o durante il drag
       drawWaveform();
     }
-  }, [currentTime, duration, zoomLevel]);
+  }, [currentTime, duration, zoomLevel, isDragging, dragWindowCenterTime]);
   
   /**
    * Ridisegna al resize
@@ -367,12 +452,28 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
+  /**
+   * Event listeners globali per il drag
+   * Permette di continuare il drag anche quando il mouse esce dal canvas
+   */
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp]);
   
   return (
     <div className="waveform-detail-container">
       <div className="waveform-detail-header">
         <span className="zoom-label">
           Zoom: {zoomLevel.toFixed(1)}s
+          {isDragging && <span className="drag-indicator"> (dragging...)</span>}
         </span>
         <div className="zoom-controls">
           <button onClick={() => setZoomLevel(prev => Math.max(2, prev - 1))} title="Zoom In">+</button>
@@ -381,11 +482,12 @@ function WaveformDetail({ audioBuffer, currentTime, duration, onSeek }) {
       </div>
       <canvas 
         ref={canvasRef} 
-        className="waveform-detail-canvas"
+        className={`waveform-detail-canvas ${isDragging ? 'dragging' : ''}`}
         onClick={handleCanvasClick}
+        onMouseDown={handleMouseDown}
         onWheel={handleWheel}
         style={{ 
-          cursor: onSeek ? 'pointer' : 'default'
+          cursor: isDragging ? 'grabbing' : (onSeek ? 'grab' : 'default')
         }}
       />
     </div>
