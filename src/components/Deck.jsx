@@ -18,8 +18,23 @@ function Deck({
   deckLabel, 
   deckAudio, 
   otherDeck,
-  syncEnabled
+  syncEnabled,
+  crossfader
 }) {
+  
+  // Calcola l'opacità del deck in base al crossfader
+  // Al centro (0.5): entrambi a opacità 1
+  // Più si sposta verso un deck, più l'altro si opacizza
+  // Opacità minima: 0.35 per mantenere sempre l'interfaccia visibile
+  const MIN_OPACITY = 0.35;
+  
+  const deckOpacity = deckLabel === 'A'
+    ? crossfader <= 0.5 
+      ? 1 
+      : Math.max(MIN_OPACITY, 1 - ((crossfader - 0.5) * 2 * (1 - MIN_OPACITY)))
+    : crossfader >= 0.5 
+      ? 1 
+      : Math.max(MIN_OPACITY, 1 - ((0.5 - crossfader) * 2 * (1 - MIN_OPACITY)));
   
   const handlePlayPause = () => {
     if (deckAudio.isPlaying) {
@@ -31,7 +46,13 @@ function Deck({
   };
   
   return (
-    <div className="deck-traktor">
+    <div 
+      className="deck-traktor"
+      style={{ 
+        opacity: deckOpacity, 
+        transition: 'opacity 0.2s ease-out' 
+      }}
+    >
       {/* Header con nome traccia e controlli */}
       <div className="deck-traktor-header">
         <div className="deck-traktor-title">

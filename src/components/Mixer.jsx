@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Knob } from 'primereact/knob';
-import { useLocalStorage } from '../hooks/useLocalStorage';
 import 'primereact/resources/themes/lara-dark-blue/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
@@ -16,9 +15,7 @@ import './Mixer.css';
  * - Controlli loop per ogni deck
  * - Persistenza dello stato del crossfader
  */
-function Mixer({ deckA, deckB }) {
-  // Usa useLocalStorage per persistere il valore del crossfader
-  const [crossfader, setCrossfader] = useLocalStorage('fratemix_crossfader', 0.5); // 0 = solo A, 1 = solo B, 0.5 = mix 50/50
+function Mixer({ deckA, deckB, crossfader, setCrossfader }) {
   
   // Handler per il drag verticale degli slider del volume
   const handleVolumeChange = (deck, e) => {
@@ -127,6 +124,20 @@ function Mixer({ deckA, deckB }) {
     }
   }, [crossfader, deckA, deckB]);
   
+  // Calcola l'opacità dei deck in base al crossfader
+  // Al centro (0.5): entrambi a opacità 1
+  // Più si sposta verso un deck, più l'altro si opacizza
+  // Opacità minima: 0.35 per mantenere sempre l'interfaccia visibile
+  const MIN_OPACITY = 0.35;
+  
+  const deckAOpacity = crossfader <= 0.5 
+    ? 1 
+    : Math.max(MIN_OPACITY, 1 - ((crossfader - 0.5) * 2 * (1 - MIN_OPACITY)));
+  
+  const deckBOpacity = crossfader >= 0.5 
+    ? 1 
+    : Math.max(MIN_OPACITY, 1 - ((0.5 - crossfader) * 2 * (1 - MIN_OPACITY)));
+  
   /**
    * Componente per un singolo controllo EQ con knob PrimeReact
    */
@@ -185,7 +196,10 @@ function Mixer({ deckA, deckB }) {
   return (
     <div className="mixer-traktor">
       {/* Deck A Section (Left) */}
-      <div className="mixer-section-traktor mixer-section-a">
+      <div 
+        className="mixer-section-traktor mixer-section-a"
+        style={{ opacity: deckAOpacity, transition: 'opacity 0.2s ease-out' }}
+      >
         <div className="eq-panel-traktor">
           {/* Volume Slider e Filter - Sinistra per Deck A */}
           <div className="mixer-volume-container">
@@ -252,7 +266,10 @@ function Mixer({ deckA, deckB }) {
       <div className="mixer-divider-traktor-vertical"></div>
       
       {/* Deck B Section (Right) */}
-      <div className="mixer-section-traktor mixer-section-b">
+      <div 
+        className="mixer-section-traktor mixer-section-b"
+        style={{ opacity: deckBOpacity, transition: 'opacity 0.2s ease-out' }}
+      >
         <div className="eq-panel-traktor">
           {/* EQ Controls - Verticale */}
           <div className="eq-row-traktor">
@@ -327,13 +344,6 @@ function Mixer({ deckA, deckB }) {
             value={crossfader}
             onChange={(e) => setCrossfader(parseFloat(e.target.value))}
             className="crossfader-slider slider-traktor"
-            style={{
-              background: `linear-gradient(to right, 
-                #4a90e2 0%, 
-                #4a90e2 ${crossfader * 50}%, 
-                #e24a4a ${crossfader * 50}%, 
-                #e24a4a 100%)`
-            }}
           />
         </div>
         <div className="crossfader-label">B</div>

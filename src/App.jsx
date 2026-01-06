@@ -19,6 +19,9 @@ function App() {
   // Stato per la sincronizzazione - unico stato globale
   const [syncEnabled, setSyncEnabled] = useLocalStorage('fratemix_sync', false);
   
+  // Stato per il crossfader - condiviso tra Mixer e Deck
+  const [crossfader, setCrossfader] = useLocalStorage('fratemix_crossfader', 0.5); // 0 = solo A, 1 = solo B, 0.5 = mix 50/50
+  
   // Inizializza i due deck con gli hook personalizzati
   const deckA = useDeckAudio({
     deckId: 'A',
@@ -142,15 +145,22 @@ function App() {
             deckAudio={deckA}
             otherDeck={deckB}
             syncEnabled={syncEnabled}
+            crossfader={crossfader}
           />
           
-          <Mixer deckA={deckA} deckB={deckB} />
+          <Mixer 
+            deckA={deckA} 
+            deckB={deckB}
+            crossfader={crossfader}
+            setCrossfader={setCrossfader}
+          />
           
           <Deck
             deckLabel="B"
             deckAudio={deckB}
             otherDeck={deckA}
             syncEnabled={syncEnabled}
+            crossfader={crossfader}
           />
         </main>
         
