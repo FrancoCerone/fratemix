@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
-import { Knob } from 'primereact/knob';
-import 'primereact/resources/themes/lara-dark-blue/theme.css';
-import 'primereact/resources/primereact.min.css';
-import 'primeicons/primeicons.css';
+import CustomKnob from './CustomKnob';
 import './Mixer.css';
 
 /**
@@ -139,21 +136,31 @@ function Mixer({ deckA, deckB, crossfader, setCrossfader }) {
     : Math.max(MIN_OPACITY, 1 - ((0.5 - crossfader) * 2 * (1 - MIN_OPACITY)));
   
   /**
-   * Componente per un singolo controllo EQ con knob PrimeReact
+   * Componente per un singolo controllo EQ con knob personalizzato
+   * I knob sono sempre modificabili, anche durante la riproduzione
+   * Memoizzato per evitare re-render inutili quando altri knob cambiano
    */
-  const EQControl = ({ label, value, onChange, kill, onKillToggle }) => {
+  const EQControl = React.memo(({ label, value, onChange, kill, onKillToggle }) => {
+    // Gestisce il cambio valore del knob
+    const handleChange = React.useCallback((newValue) => {
+      // Questo viene chiamato sempre, anche durante la riproduzione
+      if (typeof onChange === 'function') {
+        onChange(newValue);
+      }
+    }, [onChange]);
+    
     return (
       <div className="eq-control-traktor">
         <div className="eq-knob-wrapper-prime">
-          <Knob
+          <CustomKnob
             value={value}
-            onChange={(e) => onChange(e.value)}
+            onChange={handleChange}
             min={-12}
             max={12}
-            disabled={kill}
+            step={0.1}
             size={75}
-            readOnly={false}
-            valueTemplate={`${value > 0 ? '+' : ''}${value.toFixed(1)}dB`}
+            disabled={kill}
+            valueTemplate={`{value}dB`}
           />
           <label className="eq-label-traktor">{label}</label>
         </div>
@@ -166,32 +173,39 @@ function Mixer({ deckA, deckB, crossfader, setCrossfader }) {
         </button>
       </div>
     );
-  };
+  });
   
   /**
-   * Componente per il controllo filtro con knob PrimeReact
+   * Componente per il controllo filtro con knob personalizzato
+   * Memoizzato per evitare re-render inutili quando altri controlli cambiano
    */
-  const FilterControl = ({ value, onChange }) => {
+  const FilterControl = React.memo(({ value, onChange }) => {
     const filterType = value < -0.1 ? 'HP' : value > 0.1 ? 'LP' : 'OFF';
+    
+    const handleChange = React.useCallback((newValue) => {
+      if (typeof onChange === 'function') {
+        onChange(newValue);
+      }
+    }, [onChange]);
     
     return (
       <div className="filter-control-traktor">
         <div className="filter-knob-wrapper-prime">
-          <Knob
+          <CustomKnob
             value={value}
-            onChange={(e) => onChange(e.value)}
+            onChange={handleChange}
             min={-1}
             max={1}
             step={0.01}
             size={75}
-            readOnly={false}
+            disabled={false}
             valueTemplate={filterType}
           />
           <label className="filter-label-traktor">FLTR</label>
         </div>
       </div>
     );
-  };
+  });
   
   return (
     <div className="mixer-traktor">

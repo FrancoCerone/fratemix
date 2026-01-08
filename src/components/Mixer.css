@@ -406,10 +406,24 @@
   cursor: grab !important;
   user-select: none;
   -webkit-user-select: none;
+  pointer-events: auto !important;
 }
 
 .p-knob svg:active {
   cursor: grabbing !important;
+}
+
+.p-knob svg * {
+  pointer-events: auto !important;
+}
+
+/* Assicura che i knob siano sempre interattivi, anche durante la riproduzione */
+.eq-knob-wrapper-prime {
+  pointer-events: auto !important;
+}
+
+.eq-knob-wrapper-prime .p-knob {
+  pointer-events: auto !important;
 }
 
 /* Responsive */

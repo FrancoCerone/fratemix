@@ -212,20 +212,20 @@ export function useDeckAudio({
       eqLowNodeRef.current = audioContextRef.current.createBiquadFilter();
       eqLowNodeRef.current.type = 'lowshelf';
       eqLowNodeRef.current.frequency.value = 250; // Frequenza di taglio per i bassi
-      eqLowNodeRef.current.gain.value = 0;
+      eqLowNodeRef.current.gain.value = eqLow; // Applica il valore corrente
       
       // Peaking EQ per i medi: agisce su una banda specifica
       eqMidNodeRef.current = audioContextRef.current.createBiquadFilter();
       eqMidNodeRef.current.type = 'peaking';
       eqMidNodeRef.current.frequency.value = 1000; // Frequenza centrale per i medi
       eqMidNodeRef.current.Q.value = 1; // Q factor (larghezza della banda)
-      eqMidNodeRef.current.gain.value = 0;
+      eqMidNodeRef.current.gain.value = eqMid; // Applica il valore corrente
       
       // High shelf: agisce sulle frequenze alte
       eqHighNodeRef.current = audioContextRef.current.createBiquadFilter();
       eqHighNodeRef.current.type = 'highshelf';
       eqHighNodeRef.current.frequency.value = 4000; // Frequenza di taglio per gli alti
-      eqHighNodeRef.current.gain.value = 0;
+      eqHighNodeRef.current.gain.value = eqHigh; // Applica il valore corrente
       
       // Filtro passa-alto/passa-basso (utilizzato per il filtro principale)
       filterNodeRef.current = audioContextRef.current.createBiquadFilter();
@@ -246,8 +246,19 @@ export function useDeckAudio({
       gainNodeRef.current.connect(crossfaderGainNodeRef.current);
       crossfaderGainNodeRef.current.connect(analyserNodeRef.current);
       analyserNodeRef.current.connect(audioContextRef.current.destination);
+      
+      // Applica i valori iniziali degli EQ
+      if (eqLowNodeRef.current) {
+        eqLowNodeRef.current.gain.value = eqLowKill ? -100 : eqLow;
+      }
+      if (eqMidNodeRef.current) {
+        eqMidNodeRef.current.gain.value = eqMidKill ? -100 : eqMid;
+      }
+      if (eqHighNodeRef.current) {
+        eqHighNodeRef.current.gain.value = eqHighKill ? -100 : eqHigh;
+      }
     }
-  }, [gain]);
+  }, [gain, eqLow, eqMid, eqHigh, eqLowKill, eqMidKill, eqHighKill]);
   
   /**
    * Carica un file audio dal file system
@@ -344,13 +355,19 @@ export function useDeckAudio({
     const playbackRate = 1.0 + (pitchValue / 100);
     sourceNodeRef.current.playbackRate.value = playbackRate;
     
-    // Collega il source al primo nodo della catena (EQ Low)
-    // Nota: se crossfaderGainNode non è ancora inizializzato, usa eqLowNode direttamente
-    if (crossfaderGainNodeRef.current) {
-      sourceNodeRef.current.connect(eqLowNodeRef.current);
-    } else {
-      sourceNodeRef.current.connect(eqLowNodeRef.current);
+    // Assicurati che i valori degli EQ siano applicati prima di collegare il source
+    if (eqLowNodeRef.current) {
+      eqLowNodeRef.current.gain.value = eqLowKill ? -100 : eqLow;
     }
+    if (eqMidNodeRef.current) {
+      eqMidNodeRef.current.gain.value = eqMidKill ? -100 : eqMid;
+    }
+    if (eqHighNodeRef.current) {
+      eqHighNodeRef.current.gain.value = eqHighKill ? -100 : eqHigh;
+    }
+    
+    // Collega il source al primo nodo della catena (EQ Low)
+    sourceNodeRef.current.connect(eqLowNodeRef.current);
     
     // Calcola quando iniziare la riproduzione
     const startTime = audioContextRef.current.currentTime;
@@ -407,7 +424,7 @@ export function useDeckAudio({
     // Salva il tempo di inizio per calcolare il tempo corrente
     startOffsetRef.current = offset;
     loopStartTimeRef.current = startTime;
-  }, [pitchValue, loopStart, loopLength]);
+  }, [pitchValue, loopStart, loopLength, eqLow, eqMid, eqHigh, eqLowKill, eqMidKill, eqHighKill, bpm]);
   
   /**
    * Avvia o riprende la riproduzione
@@ -513,41 +530,50 @@ export function useDeckAudio({
   }, []);
   
   /**
-   * Aggiorna il valore dell'EQ Low
+   * Aggiorna il valore dell'EQ Low in tempo reale
+   * Funziona anche durante la riproduzione perché i nodi EQ sono sempre connessi nella catena
    */
   useEffect(() => {
-    if (eqLowNodeRef.current) {
+    if (eqLowNodeRef.current && audioContextRef.current && audioContextRef.current.state !== 'closed') {
       if (eqLowKill) {
         // Kill switch: taglia completamente la banda
         eqLowNodeRef.current.gain.value = -100;
       } else {
-        // Converti il valore da slider (-12 a +12) a gain lineare
+        // Applica il valore direttamente (i BiquadFilter accettano valori in dB)
+        // I valori vanno da -12 a +12 dB
+        // Questo funziona in tempo reale anche durante la riproduzione
         eqLowNodeRef.current.gain.value = eqLow;
       }
     }
   }, [eqLow, eqLowKill]);
   
   /**
-   * Aggiorna il valore dell'EQ Mid
+   * Aggiorna il valore dell'EQ Mid in tempo reale
+   * Funziona anche durante la riproduzione perché i nodi EQ sono sempre connessi nella catena
    */
   useEffect(() => {
-    if (eqMidNodeRef.current) {
+    if (eqMidNodeRef.current && audioContextRef.current && audioContextRef.current.state !== 'closed') {
       if (eqMidKill) {
         eqMidNodeRef.current.gain.value = -100;
       } else {
+        // Applica il valore direttamente (i BiquadFilter accettano valori in dB)
+        // Questo funziona in tempo reale anche durante la riproduzione
         eqMidNodeRef.current.gain.value = eqMid;
       }
     }
   }, [eqMid, eqMidKill]);
   
   /**
-   * Aggiorna il valore dell'EQ High
+   * Aggiorna il valore dell'EQ High in tempo reale
+   * Funziona anche durante la riproduzione perché i nodi EQ sono sempre connessi nella catena
    */
   useEffect(() => {
-    if (eqHighNodeRef.current) {
+    if (eqHighNodeRef.current && audioContextRef.current && audioContextRef.current.state !== 'closed') {
       if (eqHighKill) {
         eqHighNodeRef.current.gain.value = -100;
       } else {
+        // Applica il valore direttamente (i BiquadFilter accettano valori in dB)
+        // Questo funziona in tempo reale anche durante la riproduzione
         eqHighNodeRef.current.gain.value = eqHigh;
       }
     }

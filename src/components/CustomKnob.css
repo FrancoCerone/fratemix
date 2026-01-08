@@ -1,0 +1,59 @@
+.custom-knob {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.custom-knob.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.custom-knob.dragging {
+  cursor: grabbing !important;
+}
+
+.custom-knob.dragging .knob-svg {
+  cursor: grabbing !important;
+}
+
+.knob-svg {
+  cursor: grab;
+  pointer-events: auto !important;
+}
+
+.knob-svg:active {
+  cursor: grabbing;
+}
+
+.knob-track {
+  pointer-events: none;
+}
+
+.knob-indicator {
+  pointer-events: none;
+  transition: none;
+}
+
+.knob-center {
+  pointer-events: none;
+}
+
+.knob-value-text {
+  position: absolute;
+  bottom: -20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #4a90e2;
+  text-align: center;
+  pointer-events: none;
+  width: 100%;
+}
+
+.custom-knob.dragging .knob-indicator {
+  transition: none;
+}
